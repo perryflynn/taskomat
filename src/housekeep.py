@@ -116,17 +116,19 @@ def main():
 
             # enforce assignee if none set
             if keep.ensure_assignee(issue, [ args.assignee ]):
-                print("Set assignee to '" + issue['web_url'] + "'")
+                print("Set assignee for '" + issue['web_url'] + "'")
 
             # enforce locked discussion for closed issues
             if keep.ensure_locked(issue):
-                print("Set locked to '" + issue['web_url'] + "'")
+                print("Set locked for '" + issue['web_url'] + "'")
 
             # enforce confidential for closed issues
             if keep.ensure_confidential(issue):
-                print("Set confidential to '" + issue['web_url'] + "'")
+                print("Set confidential for '" + issue['web_url'] + "'")
 
-        keep.notify_past_due(issue)
+            # past due notification
+            if keep.notify_past_due(issue):
+                print("Send past due notice for '" + issue['web_url'] + "'")
 
 
 if __name__ == "__main__":
