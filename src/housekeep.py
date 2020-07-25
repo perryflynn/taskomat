@@ -58,7 +58,7 @@ class Housekeep:
         """ Send mention when the issue is past due """
         prefix = '`housekeep:pastdueinfo`'
 
-        if issue['due_date']:
+        if issue['state'] == 'opened' and issue['due_date']:
             now = datetime.datetime.now().replace(tzinfo=datetime.timezone.utc)
             due_date = datetime.datetime.strptime(issue['due_date'], '%Y-%m-%d').replace(tzinfo=datetime.timezone.utc)
 
