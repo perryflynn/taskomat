@@ -1,0 +1,33 @@
+stages:
+  - build
+
+variables:
+  imageversion: "latest"
+  pushtag: "${CI_REGISTRY}/${CI_PROJECT_NAMESPACE}/${CI_PROJECT_NAME}:${imageversion}"
+
+#
+# -> Templates
+#
+
+.tpl:docker:
+  image: docker:stable
+  before_script:
+    - "docker login -u gitlab-ci-token -p $CI_JOB_TOKEN ${CI_REGISTRY}"
+  after_script:
+    - "docker logout ${CI_REGISTRY}"
+    - "docker image prune -f"
+  tags:
+    - docker
+
+#
+# -> Jobs
+#
+
+build:
+  extends: .tpl:docker
+  stage: build
+  script:
+    #- find root -type d -exec chmod u=rwx,go=rx {} +
+    #- find root -type f -exec chmod u=rw,go=r {} +
+    - 'docker build -t "${pushtag}" .'
+    - 'docker push "${pushtag}"'

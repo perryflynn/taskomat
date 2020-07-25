@@ -1,0 +1,8 @@
+taskomat:
+  title: Maximales Beispiel
+  labels:
+    - low
+  due: 30
+  assignees: [ 2 ]
+  description: |
+    Maximales Beispiel!
