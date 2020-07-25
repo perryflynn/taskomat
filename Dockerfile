@@ -9,9 +9,7 @@ ADD src /src
 
 RUN apt update && \
     apt-get $APTOPTS upgrade && apt-get $APTOPTS dist-upgrade && \
-    apt-get $APTOPTS install procps net-tools bsd-mailx dnsutils \
-        iproute2 iputils-ping zip unzip git curl wget rsync openssl-client \
-        python3 python3-pip python3-wheel python3-setuptools && \
+    apt-get $APTOPTS install python3 python3-pip python3-wheel python3-setuptools && \
     apt-get $APTOPTS install -f && \
     apt-get $APTOPTS --purge autoremove && \
     apt-get $APTOPTS clean && \
