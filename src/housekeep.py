@@ -4,6 +4,8 @@ import os
 import argparse
 import datetime
 import dateutil.parser
+import yaml
+import re
 from pprint import pprint
 
 from gitlabutils import api
@@ -16,11 +18,31 @@ class Housekeep:
         """ Initialize class """
         self.api = api.GitLabApi(gitlab_url, gitlab_token)
         self.project = gitlab_project
+        self.milestones = None
 
     def get_issues(self):
         """ Get issues """
         for issue in self.api.get_project_issues(self.project, state='all', labels=''):
             yield issue
+
+    def get_milestones(self):
+        """ Get milestones """
+        cfg_rgx = re.compile(r"^```yml[ \t]*$[\n\r]+^# TaskOMat config[ \t]*$[\n\r]+(.*?)^```[ \t]*$", re.M | re.S | re.I)
+        for milestone in self.api.get_project_milestones(self.project, state='active'):
+            match = cfg_rgx.search(milestone['description'])
+            if match:
+                # parse config and return
+                try:
+                    milestone['taskomat'] = yaml.load(match.group(1), Loader=yaml.FullLoader)
+                    if 'label' in milestone['taskomat'].keys() and 'year' in milestone['taskomat'].keys():
+                        yield milestone
+                except:
+                    pass
+
+    def create_labelmilestone_config(self, label, year):
+        """ Generate TaskOMat config text """
+        cfgyml = yaml.dump({ 'label': label, 'year': year }, default_flow_style=False)
+        return ":tea: This milestone is maintained by TaskOMat Housekeep:\n\n```yml\n# TaskOMat config\n" + cfgyml + "\n```\n"
 
     def ensure_assignee(self, issue, assignee_ids=[]):
         """ Assign someone when no one is assigned """
@@ -34,6 +56,53 @@ class Housekeep:
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['assignees'] = updated['assignees']
             return True
+
+        return False
+
+    def ensure_milestone(self, issue, labels):
+        """ Assign issue to a collection milestone """
+        year = max([
+            int((issue['updated_at'] if issue['updated_at'] else '0000')[0:4]),
+            int((issue['due_date'] if issue['due_date'] else '0000')[0:4])
+        ])
+
+        if self.milestones is None:
+            self.milestones = list(self.get_milestones())
+
+        # assign a milestone
+        if not issue['milestone']:
+            issue_labels = list(filter(lambda x: x in labels, issue['labels']))
+            if len(issue_labels) > 0:
+
+                label_ms = list(filter(lambda x: x['taskomat']['label'] == issue_labels[0] and x['taskomat']['year'] == year, self.milestones))
+                milestone_id = label_ms[0]['id'] if len(label_ms) > 0 else -1
+
+                # create milestone if missing
+                if milestone_id <= 0:
+                    ms_due_start = str(year) + '-01-01'
+                    ms_due_end = str(year) + '-12-31'
+                    ms_name = issue_labels[0] + ' ' + str(year)
+                    ms_description = self.create_labelmilestone_config(issue_labels[0], year)
+
+                    new_milestone = self.api.post_project_milestone(self.project, ms_name, ms_description, ms_due_end, ms_due_start)
+                    milestone_id = new_milestone['id']
+
+                    self.milestones = list(self.get_milestones())
+
+                # update issue
+                params = { 'milestone_id': milestone_id }
+                self.api.update_issue(self.project, issue['iid'], params)
+                return True
+
+        # unassign if the issue has not the required tag
+        else:
+            label_ms = list(filter(lambda x: x['id'] == issue['milestone']['id'], self.milestones))
+            if len(label_ms) > 0 and label_ms[0]['taskomat']['label'] not in issue['labels']:
+
+                # update issue
+                params = { 'milestone_id': 0 }
+                self.api.update_issue(self.project, issue['iid'], params)
+                return True
 
         return False
 
@@ -101,6 +170,7 @@ def parse_args():
     parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, help='GitLab private access token')
     parser.add_argument('--project', metavar='johndoe/todos', type=str, help='GitLab project')
     parser.add_argument('--assignee', metavar=42, type=int, help='Fallback assignee')
+    parser.add_argument('--milestone-label', metavar='somelabel', action='append', help='Summarize issues with this label in a milestone')
     return parser.parse_args()
 
 
@@ -120,6 +190,10 @@ def main():
             # enforce assignee if none set
             if keep.ensure_assignee(issue, [ args.assignee ]):
                 print("Set assignee for '" + issue['web_url'] + "'")
+
+            # assign milestone by label
+            if keep.ensure_milestone(issue, args.milestone_label):
+                print("Set milestone for '" + issue['web_url'] + "'")
 
             # enforce locked discussion for closed issues
             if keep.ensure_locked(issue):

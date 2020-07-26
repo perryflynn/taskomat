@@ -9,6 +9,46 @@ class GitLabApi:
         self.url = gitlab_url
         self.token = gitlab_token
 
+    def get_project_milestones(self, project, state='active'):
+        """ Get all milestones """
+        self.issues = []
+        item_buffer = []
+        item_count = 100
+        page_count = 1
+
+        url = self.url + '/api/v4/projects/' + urllib.parse.quote(project, safe='') + '/milestones'
+        headers = { 'PRIVATE-TOKEN': self.token }
+        params = { 'page': 0, 'per_page': item_count, 'state': state }
+
+        while True:
+            # fetch a page of issues
+            params['page'] = page_count
+            r = requests.get(url, params=params, headers=headers)
+            item_buffer = r.json()
+
+            for item in item_buffer:
+                yield item
+
+            # next page until non-full buffer
+            page_count += 1
+            if len(item_buffer) < item_count:
+                break
+
+        return
+
+    def post_project_milestone(self, project, title, description='', due_date='', start_date=''):
+        """ Create a new milestone """
+        issue_url = self.url + '/api/v4/projects/' + urllib.parse.quote(project, safe='') + '/milestones'
+        issue_headers = { 'PRIVATE-TOKEN': self.token }
+        issue_params = {
+            'title': title,
+            'description': description,
+            'due_date': due_date,
+            'start_date': start_date
+        }
+
+        return requests.post(issue_url, headers=issue_headers, params=issue_params).json()
+
     def get_project_issues(self, project, state='opened', labels=''):
         """ Get all issues """
         self.issues = []
