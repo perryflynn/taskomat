@@ -31,7 +31,8 @@ class Housekeep:
 
         if do_assign:
             params = { 'assignee_ids': assignee_ids }
-            self.api.update_issue(self.project, issue['iid'], params)
+            updated = self.api.update_issue(self.project, issue['iid'], params)
+            issue['assignees'] = updated['assignees']
             return True
 
         return False
