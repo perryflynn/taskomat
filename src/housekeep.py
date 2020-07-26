@@ -39,18 +39,20 @@ class Housekeep:
 
     def ensure_locked(self, issue):
         """ Lock closed issue """
-        if issue['state'] == 'closed' and issue['discussion_locked'] == False:
+        if issue['state'] == 'closed' and (issue['discussion_locked'] is None or issue['discussion_locked'] != True):
             params = { 'discussion_locked': 'true' }
-            self.api.update_issue(self.project, issue['iid'], params)
+            updated = self.api.update_issue(self.project, issue['iid'], params)
+            issue['discussion_locked'] = updated['discussion_locked']
             return True
 
         return False
 
     def ensure_confidential(self, issue):
         """ Set closed issue to confidential """
-        if issue['state'] == 'closed' and issue['confidential'] == False:
+        if issue['state'] == 'closed' and (issue['confidential'] is None or issue['confidential'] != True):
             params = { 'confidential': 'true' }
-            self.api.update_issue(self.project, issue['iid'], params)
+            updated = self.api.update_issue(self.project, issue['iid'], params)
+            issue['confidential'] = updated['confidential']
             return True
 
         return False
