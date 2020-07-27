@@ -27,9 +27,9 @@ class Housekeep:
 
     def get_milestones(self):
         """ Get milestones """
-        cfg_rgx = re.compile(r"^```yml[ \t]*$[\n\r]+^# TaskOMat config[ \t]*$[\n\r]+(.*?)^```[ \t]*$", re.M | re.S | re.I)
+        cfg_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat config[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
         for milestone in self.api.get_project_milestones(self.project, state='active'):
-            match = cfg_rgx.search(milestone['description'])
+            match = cfg_rgx.search(str(milestone['description']))
             if match:
                 # parse config and return
                 try:
@@ -91,17 +91,24 @@ class Housekeep:
 
                 # update issue
                 params = { 'milestone_id': milestone_id }
-                self.api.update_issue(self.project, issue['iid'], params)
+                updated = self.api.update_issue(self.project, issue['iid'], params)
+                issue['milestone'] = updated['milestone']
                 return True
 
         # unassign if the issue has not the required tag
         else:
             label_ms = list(filter(lambda x: x['id'] == issue['milestone']['id'], self.milestones))
+
+            if issue['iid'] == 83:
+                pprint(self.milestones)
+                pprint(label_ms)
+
             if len(label_ms) > 0 and label_ms[0]['taskomat']['label'] not in issue['labels']:
 
                 # update issue
                 params = { 'milestone_id': 0 }
-                self.api.update_issue(self.project, issue['iid'], params)
+                updated = self.api.update_issue(self.project, issue['iid'], params)
+                issue['milestone'] = updated['milestone']
                 return True
 
         return False

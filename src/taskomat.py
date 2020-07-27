@@ -42,7 +42,7 @@ class TaskOMat:
 
     def get_issue_config(self, issue_iid):
         """ Find issue config """
-        cfg_rgx = re.compile(r"^```yml[ \t]*$[\n\r]+^# TaskOMat config[ \t]*$[\n\r]+(.*?)^```[ \t]*$", re.M | re.S | re.I)
+        cfg_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat config[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
 
         for note in self.api.get_issue_notes(self.project, issue_iid, sort='desc', order_by='updated_at'):
             match = cfg_rgx.search(note['body'])
