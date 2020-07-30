@@ -6,7 +6,6 @@ import datetime
 import dateutil.parser
 import yaml
 import re
-from pprint import pprint
 
 from gitlabutils import api
 
@@ -108,11 +107,6 @@ class Housekeep:
         # unassign if the issue has not the required tag
         else:
             label_ms = list(filter(lambda x: x['id'] == issue['milestone']['id'], self.milestones))
-
-            if issue['iid'] == 83:
-                pprint(self.milestones)
-                pprint(label_ms)
-
             if len(label_ms) > 0 and label_ms[0]['taskomat']['label'] not in issue['labels']:
 
                 # update issue
