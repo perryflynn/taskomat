@@ -185,11 +185,11 @@ class Housekeep:
 
 def parse_args():
     """ Parse command line arguments """
-    parser = argparse.ArgumentParser(description='TaskOMat for GitLab')
+    parser = argparse.ArgumentParser(description='TaskOMat Housekeeper for GitLab')
 
-    parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, help='GitLab private access token')
-    parser.add_argument('--project', metavar='johndoe/todos', type=str, help='GitLab project')
-    parser.add_argument('--assignee', metavar=42, type=int, help='Fallback assignee')
+    parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, required=True, help='GitLab private access token')
+    parser.add_argument('--project', metavar='johndoe/todos', type=str, required=True, help='GitLab project')
+    parser.add_argument('--assignee', metavar=42, type=int, default=0, help='Assign issue to this user id if unassigned')
     parser.add_argument('--milestone-label', metavar='somelabel', action='append', help='Summarize issues with this label in a milestone')
     parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
     parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
@@ -199,13 +199,20 @@ def parse_args():
 
 def main():
     """ Main function """
+    # command line args
     args = parse_args()
-    gitlab_token = os.environ.get('TASKOMAT_TOKEN')
 
+    # args from environment variables
+    gitlab_token = os.environ.get('TASKOMAT_TOKEN')
+    if not gitlab_token:
+        raise ValueError('Environment variable \'TASKOMAT_TOKEN\' is not defined')
+
+    # issue time range
     now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
     updated_after = now - datetime.timedelta(seconds=args.max_updated_age)
     updated_before = now - datetime.timedelta(seconds=args.delay)
 
+    # initialize tasks
     keep = Housekeep(
         gitlab_url=args.gitlab_url,
         gitlab_token=gitlab_token,
@@ -214,10 +221,11 @@ def main():
         updated_before=updated_before
     )
 
+    # execute tasks for each issue
     for issue in keep.get_issues():
 
         # enforce assignee if none set
-        if keep.ensure_assignee(issue, [ args.assignee ]):
+        if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
             print("Set assignee for '" + issue['web_url'] + "'")
 
         # assign milestone by label

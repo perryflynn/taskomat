@@ -125,18 +125,31 @@ class TaskOMat:
 def parse_args():
     """ Parse command line arguments """
     parser = argparse.ArgumentParser(description='TaskOMat for GitLab')
-    parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, help='GitLab private access token')
-    parser.add_argument('--project', metavar='johndoe/todos', type=str, help='GitLab project')
-    parser.add_argument('--collection-dir', metavar='~/.taskomat', type=str, help='Tasks collection folder')
+    parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, required=True, help='GitLab private access token')
+    parser.add_argument('--project', metavar='johndoe/todos', type=str, required=True, help='GitLab project')
+    parser.add_argument('--collection-dir', metavar='~/.taskomat', type=str, required=True, help='Tasks collection folder')
     return parser.parse_args()
 
 
 def main():
     """ Main function """
+    # command line args
     args = parse_args()
-    gitlab_token = os.environ.get('TASKOMAT_TOKEN')
-    omat = TaskOMat(gitlab_url=args.gitlab_url, gitlab_token=gitlab_token, gitlab_project=args.project, collection_dir=args.collection_dir)
 
+    # environment variables
+    gitlab_token = os.environ.get('TASKOMAT_TOKEN')
+    if not gitlab_token:
+        raise ValueError('Environment variable \'TASKOMAT_TOKEN\' is not defined')
+
+    # initalize tasks
+    omat = TaskOMat(
+        gitlab_url=args.gitlab_url,
+        gitlab_token=gitlab_token,
+        gitlab_project=args.project,
+        collection_dir=args.collection_dir
+    )
+
+    # create issues
     for task in omat.get_collection_items():
         omat.create_issue(task)
 
