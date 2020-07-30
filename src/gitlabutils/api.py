@@ -49,16 +49,31 @@ class GitLabApi:
 
         return requests.post(issue_url, headers=issue_headers, params=issue_params).json()
 
-    def get_project_issues(self, project, state='opened', labels=''):
+    def get_project_issues(self, project, state='opened', labels='', updated_before=None, updated_after=None):
         """ Get all issues """
         self.issues = []
         item_buffer = []
         item_count = 100
         page_count = 1
+        updated_after_str = ''
+        updated_before_str = ''
+
+        if updated_after is not None:
+            updated_after_str = updated_after.isoformat()
+
+        if updated_before is not None:
+            updated_before_str = updated_before.isoformat()
 
         url = self.url + '/api/v4/projects/' + urllib.parse.quote(project, safe='') + '/issues'
         headers = { 'PRIVATE-TOKEN': self.token }
-        params = { 'page': 0, 'per_page': item_count, 'state': state, 'labels': labels }
+        params = {
+            'page': 0,
+            'per_page': item_count,
+            'state': state,
+            'labels': labels,
+            'updated_before': updated_before_str,
+            'updated_after': updated_after_str
+        }
 
         while True:
             # fetch a page of issues

@@ -14,15 +14,25 @@ from gitlabutils import api
 class Housekeep:
     """ Housekeep functions """
 
-    def __init__(self, gitlab_url, gitlab_token, gitlab_project):
+    def __init__(self, gitlab_url, gitlab_token, gitlab_project, updated_after, updated_before):
         """ Initialize class """
         self.api = api.GitLabApi(gitlab_url, gitlab_token)
         self.project = gitlab_project
         self.milestones = None
+        self.updated_after = updated_after
+        self.updated_before = updated_before
 
     def get_issues(self):
         """ Get issues """
-        for issue in self.api.get_project_issues(self.project, state='all', labels=''):
+        issues = self.api.get_project_issues(
+            self.project,
+            state='all',
+            labels='',
+            updated_after=self.updated_after,
+            updated_before=self.updated_before
+        )
+
+        for issue in issues:
             yield issue
 
     def get_milestones(self):
@@ -148,12 +158,14 @@ class Housekeep:
             # issue is past due
             if (now-due_date).total_seconds() >= 24 * 60 * 60:
 
-                # create only a note if the last one is older that 24h
+                # create only a note if the last one is older than 24h
                 for notinote in notinotes:
                     update_date = dateutil.parser.isoparse(notinote['updated_at'])
                     if (now-update_date).total_seconds() >= 24 * 60 * 60:
                         self.api.delete_note(self.project, issue['iid'], notinote['id'])
                     else:
+                        # at least one past due mention is not
+                        # older than 24h, so create no new one
                         return True
 
                 # create a new past due notice
@@ -174,10 +186,14 @@ class Housekeep:
 def parse_args():
     """ Parse command line arguments """
     parser = argparse.ArgumentParser(description='TaskOMat for GitLab')
+
     parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, help='GitLab private access token')
     parser.add_argument('--project', metavar='johndoe/todos', type=str, help='GitLab project')
     parser.add_argument('--assignee', metavar=42, type=int, help='Fallback assignee')
     parser.add_argument('--milestone-label', metavar='somelabel', action='append', help='Summarize issues with this label in a milestone')
+    parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
+    parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
+
     return parser.parse_args()
 
 
@@ -185,34 +201,40 @@ def main():
     """ Main function """
     args = parse_args()
     gitlab_token = os.environ.get('TASKOMAT_TOKEN')
-    keep = Housekeep(gitlab_url=args.gitlab_url, gitlab_token=gitlab_token, gitlab_project=args.project)
 
     now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+    updated_after = now - datetime.timedelta(seconds=args.max_updated_age)
+    updated_before = now - datetime.timedelta(seconds=args.delay)
+
+    keep = Housekeep(
+        gitlab_url=args.gitlab_url,
+        gitlab_token=gitlab_token,
+        gitlab_project=args.project,
+        updated_after=updated_after,
+        updated_before=updated_before
+    )
 
     for issue in keep.get_issues():
-        # only handle issues which are unmodified some time
-        last_update = dateutil.parser.isoparse(issue['updated_at'])
-        if (now-last_update).total_seconds() >= (15 * 60):
 
-            # enforce assignee if none set
-            if keep.ensure_assignee(issue, [ args.assignee ]):
-                print("Set assignee for '" + issue['web_url'] + "'")
+        # enforce assignee if none set
+        if keep.ensure_assignee(issue, [ args.assignee ]):
+            print("Set assignee for '" + issue['web_url'] + "'")
 
-            # assign milestone by label
-            if keep.ensure_milestone(issue, args.milestone_label):
-                print("Set milestone for '" + issue['web_url'] + "'")
+        # assign milestone by label
+        if keep.ensure_milestone(issue, args.milestone_label):
+            print("Set milestone for '" + issue['web_url'] + "'")
 
-            # enforce locked discussion for closed issues
-            if keep.ensure_locked(issue):
-                print("Set locked for '" + issue['web_url'] + "'")
+        # enforce locked discussion for closed issues
+        if keep.ensure_locked(issue):
+            print("Set locked for '" + issue['web_url'] + "'")
 
-            # enforce confidential for closed issues
-            if keep.ensure_confidential(issue):
-                print("Set confidential for '" + issue['web_url'] + "'")
+        # enforce confidential for closed issues
+        if keep.ensure_confidential(issue):
+            print("Set confidential for '" + issue['web_url'] + "'")
 
-            # past due notification
-            if keep.notify_past_due(issue):
-                print("Send past due notice for '" + issue['web_url'] + "'")
+        # past due notification
+        if keep.notify_past_due(issue):
+            print("Send past due notice for '" + issue['web_url'] + "'")
 
 
 if __name__ == "__main__":

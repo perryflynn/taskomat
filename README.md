@@ -1,0 +1,52 @@
+# TaskOMat GitLab Issue Bot
+
+This is a script collection to manage GitLab issues.
+
+## Housekeeping
+
+This cron ensures certain rules on all issues.
+
+```sh
+# from a gitlab-ci pipeline
+# uses the buildin variables
+./housekeep.py --gitlab-url "$CI_SERVER_URL" \
+    --project "$CI_PROJECT_PATH" \
+    --assignee $assignee \
+    --milestone-label Bürokratie \
+    --milestone-label Wohnung
+```
+
+```mermaid
+graph TD
+    hk[Housekeep Cron] --> issues[Get all Issues where<br>updated timestamp is<br>older than 15 minutes]
+    issues --> assign[Assign all unassigned<br>issues to a specific user]
+    issues --> milestone[Summarize issues tagged<br>with specific tags in<br>milestones to show a time<br>tracking summary for this tag]
+    issues --> lock[Lock discussions<br>for closed issues]
+    issues --> confidential[Set closed issues<br>to confidential]
+    issues --> isdue{Is issue<br>past due?}
+    isdue -->|Yes| delduemsg2[Delete existing<br>due mentions]
+    delduemsg2 --> addue[Create past due<br>mention to assignee]
+    isdue -->|No| delduemsg[Delete existing<br>due mentions]
+    issues --> due[Send a mention to<br>the assignee when<br>a issue is past due]
+```
+
+## TaskOMat
+
+This script creates issues from YAML files. When
+the specific issue already/still exists it creates
+just a mention to the assignee.
+
+```sh
+# from a gitlab-ci pipeline
+# uses buildin variables and pipeline scheduler variables
+./taskomat.py --gitlab-url "$CI_SERVER_URL" \
+    --project "$CI_PROJECT_PATH" \
+    --collection-dir ./$CRON_COLLECTION
+```
+
+```mermaid
+graph TD
+    tm[TaskOMat Cron] --> check{Issue still exists?}
+    check -->|Yes| note[Create a note<br>to mention assignee]
+    check -->|No| issue[Create a new<br>issue based<br>von YAML config]
+```

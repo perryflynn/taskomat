@@ -27,7 +27,5 @@ build:
   extends: .tpl:docker
   stage: build
   script:
-    #- find root -type d -exec chmod u=rwx,go=rx {} +
-    #- find root -type f -exec chmod u=rw,go=r {} +
     - 'docker build -t "${pushtag}" .'
     - 'docker push "${pushtag}"'
