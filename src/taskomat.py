@@ -6,6 +6,8 @@ import argparse
 import yaml
 import re
 import datetime
+import dateutil.parser
+import dateutil.relativedelta
 
 from gitlabutils import api
 
@@ -13,12 +15,13 @@ from gitlabutils import api
 class TaskOMat:
     """ TaskOMat Business logic """
 
-    def __init__(self, gitlab_url, gitlab_token, gitlab_project, collection_dir):
+    def __init__(self, gitlab_url, gitlab_token, gitlab_project, collection_dir, updated_after):
         """ Initialize class """
         self.api = api.GitLabApi(gitlab_url, gitlab_token)
         self.project = gitlab_project
         self.label = 'TaskOMat'
         self.dir = collection_dir
+        self.updated_after = updated_after
         self.issues = None
 
     def get_collection_items(self):
@@ -34,7 +37,7 @@ class TaskOMat:
         """ Get all issues """
         self.issues = []
 
-        for issue in self.api.get_project_issues(self.project, state='opened', labels=self.label):
+        for issue in self.api.get_project_issues(self.project, state='all', labels=self.label, updated_after=self.updated_after):
             issue['taskomat'] = self.get_issue_config(issue['iid'])
             if issue['taskomat']:
                 self.issues.append(issue)
@@ -66,6 +69,22 @@ class TaskOMat:
         cfgyml = yaml.dump(cfg, default_flow_style=False)
         return ":tea: The following config is required for TaskOMat to work properly:\n\n```yml\n# TaskOMat config\n" + cfgyml + "\n```\n"
 
+    def human_timedelta(self, delta):
+        """ Make timedelta human readable """
+        reldelta = dateutil.relativedelta.relativedelta(seconds=delta.total_seconds(), microseconds=delta.microseconds)
+        attrs = ['years', 'months', 'days', 'hours', 'minutes', 'seconds']
+
+        human_readable = lambda delta: ['%d %s' % (getattr(delta, attr), getattr(delta, attr) > 1 and attr or attr[:-1])
+            for attr in attrs if getattr(delta, attr)]
+
+        # just the first 2 elements
+        deltalist = list(human_readable(reldelta))
+        if len(deltalist) > 2:
+            deltalist = deltalist[:2]
+
+        # to string
+        return ', '.join(deltalist)
+
     def post_or_update_config(self, issue, cfg):
         """ Create or update TaskOMat config """
         cfgtxt = self.create_issueconfig(cfg)
@@ -80,9 +99,10 @@ class TaskOMat:
     def create_issue(self, task):
         """ Create a issue from a task object """
         self.ensure_issues()
+        now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
 
         # check if a open issue with the same key already exists
-        existing = list(x for x in self.issues if x['taskomat']['config']['key'] == task['key'])
+        existing = list(x for x in self.issues if x['state'] == 'opened' and x['taskomat']['config']['key'] == task['key'])
 
         if len(existing) > 0:
             # just create a ping-note
@@ -121,6 +141,25 @@ class TaskOMat:
             # create config as note
             self.post_or_update_config(issue, { 'key': task['key'], 'botcounter': 1 })
 
+            # related items
+            related_list = []
+            related_items = list(x for x in self.issues if x['taskomat']['config']['key'] == task['key'])
+            for related_item in related_items:
+                # closed info
+                closed_str = ''
+                if related_item['closed_at']:
+                    closed_date = dateutil.parser.isoparse(related_item['closed_at'])
+                    closed_str = ' (closed ' + self.human_timedelta((now - closed_date)) + ' ago)'
+
+                # related list item
+                related_list.append('#' + str(related_item['iid']) + closed_str)
+
+            # post related items as issue note
+            if len(related_list) > 0:
+                related_list_txt = "- " + ("\n- ".join(related_list))
+                related_txt = ":clock2: :book: Related issues:\n\n" + related_list_txt
+                self.api.post_note(self.project, issue['iid'], related_txt)
+
 
 def parse_args():
     """ Parse command line arguments """
@@ -128,6 +167,7 @@ def parse_args():
     parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, required=True, help='GitLab private access token')
     parser.add_argument('--project', metavar='johndoe/todos', type=str, required=True, help='GitLab project')
     parser.add_argument('--collection-dir', metavar='~/.taskomat', type=str, required=True, help='Tasks collection folder')
+    parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
     return parser.parse_args()
 
 
@@ -141,12 +181,17 @@ def main():
     if not gitlab_token:
         raise ValueError('Environment variable \'TASKOMAT_TOKEN\' is not defined')
 
+    # issue time range
+    now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+    updated_after = now - datetime.timedelta(seconds=args.max_updated_age)
+
     # initalize tasks
     omat = TaskOMat(
         gitlab_url=args.gitlab_url,
         gitlab_token=gitlab_token,
         gitlab_project=args.project,
-        collection_dir=args.collection_dir
+        collection_dir=args.collection_dir,
+        updated_after=updated_after
     )
 
     # create issues
