@@ -26,8 +26,7 @@ graph TD
     issues --> isdue{Is issue<br>past due?}
     isdue -->|Yes| delduemsg2[Delete existing<br>due mentions]
     delduemsg2 --> addue[Create past due<br>mention to assignee]
-    isdue -->|No| delduemsg[Delete existing<br>due mentions]
-    issues --> due[Send a mention to<br>the assignee when<br>a issue is past due]
+    isdue -->|No| delduemsg[Delete existing<br>past due mentions]
 ```
 
 ## TaskOMat
@@ -49,4 +48,5 @@ graph TD
     tm[TaskOMat Cron] --> check{Issue still exists?}
     check -->|Yes| note[Create a note<br>to mention assignee]
     check -->|No| issue[Create a new<br>issue based<br>von YAML config]
+    issue --> related[Create a list of<br>related issues]
 ```
