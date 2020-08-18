@@ -141,16 +141,21 @@ class Housekeep:
         """ Send mention when the issue is past due """
         prefix = '`housekeep:pastdueinfo`'
 
-        if issue['state'] == 'opened' and issue['due_date']:
+        if issue['state'] == 'opened':
+
+            # check due state
             now = datetime.datetime.now().replace(tzinfo=datetime.timezone.utc)
-            due_date = datetime.datetime.strptime(issue['due_date'], '%Y-%m-%d').replace(tzinfo=datetime.timezone.utc)
+            is_due = False
+            if  issue['due_date']:
+                due_date = datetime.datetime.strptime(issue['due_date'], '%Y-%m-%d').replace(tzinfo=datetime.timezone.utc)
+                is_due = (now-due_date).total_seconds() >= 24 * 60 * 60
 
             # find existing past due notes
             notes = list(self.api.get_issue_notes(self.project, issue['iid']))
             notinotes = filter(lambda x: x['body'].startswith(prefix), notes)
 
             # issue is past due
-            if (now-due_date).total_seconds() >= 24 * 60 * 60:
+            if is_due:
 
                 # create only a note if the last one is older than 24h
                 for notinote in notinotes:
