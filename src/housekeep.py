@@ -302,7 +302,8 @@ class Housekeep:
                 summaryrows.append('')
 
                 # grand total
-                summaryrows.append('**Total:** '+str(total)+unit)
+                lastamount = ' (+'+str(newstate_data['items'][-1]['amount'])+unit+' last)' if len(newstate_data['items']) > 0 else ''
+                summaryrows.append('**Total:** '+str(total)+unit+lastamount)
                 summaryrows.append('')
 
                 # post summary
