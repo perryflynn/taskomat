@@ -6,6 +6,7 @@ import datetime
 import dateutil.parser
 import yaml
 import re
+import itertools
 
 from gitlabutils import api
 
@@ -181,6 +182,143 @@ class Housekeep:
 
         return False
 
+    def counter_monthgroup(self, x):
+        """ Helper function used when creating monthly summary for counters """
+
+        items = list(x[1])
+        return {
+            'date': x[0],
+            'count': len(items),
+            'amount': sum(item['amount'] for item in items),
+        }
+
+    def process_counters(self, issue):
+        """ Process counting requests """
+
+        ctr_rgx = re.compile(r"^\!count\s+(?P<amount>[0-9]+(?:\.[0-9]+)?)(?:\s+(?P<timestamp>[0-9]{4}-[0-9]{2}-[0-9]{2}))?\s*$", re.M | re.I)
+        unit_rgx = re.compile(r"^\!countunit\s+(?P<unit>[^\s]+)\s*$", re.M | re.I)
+
+        state_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat counter state[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
+        state_id = None
+        state_data = None
+        newstate_data = { 'last_updated': None, 'unit': None, 'items': [] }
+
+        summary_prefix = '`TaskOMat:countersummary`'
+        summary_id = None
+
+        if 'Counter' in issue['labels']:
+
+            # iterate all notes
+            for note in self.api.get_issue_notes(self.project, issue['iid']):
+                note_created = dateutil.parser.isoparse(note['created_at'])
+                note_updated = dateutil.parser.isoparse(note['updated_at'])
+
+                # remember ID for the summary note
+                if summary_id is None and note['body'].startswith(summary_prefix):
+                    summary_id = note['id']
+
+                # find and load counter state
+                match = state_rgx.search(str(note['body']))
+                if match:
+                    try:
+                        state_data = yaml.load(match.group(1), Loader=yaml.FullLoader)
+                        state_id = note['id']
+                    except:
+                        pass
+
+                # search for counter requests and add them to state data
+                else:
+                    ismatch = False
+                    for _, match in enumerate(ctr_rgx.finditer(note['body']), 1):
+                        ismatch = True
+                        date = match.group('timestamp') if match.group('timestamp') else note_created.strftime('%Y-%m-%d')
+                        amount = float(match.group('amount'))
+                        newstate_data['items'].append({ 'date': date, 'amount': amount, 'note_id': note['id'] })
+
+                    for _, match in enumerate(unit_rgx.finditer(note['body']), 1):
+                        ismatch = True
+                        newstate_data['unit'] = match.group('unit')
+
+                    if ismatch:
+                        if newstate_data['last_updated'] is None or newstate_data['last_updated'] < note_updated:
+                            newstate_data['last_updated'] = note_updated
+
+            # create state
+            stateyml = yaml.dump(newstate_data, default_flow_style=None)
+            statebody = ":tea: The following config is required for TaskOMat counter to work properly:\n\n```yml\n# TaskOMat counter state\n" + stateyml + "\n```\n"
+
+            # update existing state note
+            if state_id is not None and state_data['last_updated'] < newstate_data['last_updated'] and len(newstate_data['items']) > 0:
+                self.api.update_note(self.project, issue['iid'], state_id, statebody)
+
+            # create a new state note
+            elif state_id is None and len(newstate_data['items']) > 0:
+                self.api.post_note(self.project, issue['iid'], statebody)
+
+            # delete state config as the new state has no items
+            elif state_id is not None and len(newstate_data['items']) <= 0:
+                self.api.delete_note(self.project, issue['iid'], state_id)
+
+            # create/update summary
+            if (summary_id is None or state_data['last_updated'] < newstate_data['last_updated']) and len(newstate_data['items']) > 0:
+
+                unit = ' '+newstate_data['unit'] if newstate_data['unit'] else ''
+                summaryrows = [
+                    summary_prefix+' :tea: Here is the TaskOMat counter summary:',
+                ]
+
+                # monthly summary
+                groupkeyfunc = lambda x: x['date'][0:7]
+                monthlyitemsiter = itertools.groupby(sorted(newstate_data['items'], key=groupkeyfunc), groupkeyfunc)
+                monthlyitems = list(map(self.counter_monthgroup, monthlyitemsiter))
+                largestmonth = max(monthlyitems, key=lambda x: x['amount'])['date']
+                mostmonth = max(monthlyitems, key=lambda x: x['count'])['date']
+
+                # other stats
+                total = sum(item['amount'] for item in newstate_data['items'])
+                totalcount = len(newstate_data['items'])
+                itemstimesorted = sorted(newstate_data['items'], key=lambda x: x['date'])
+                minamount = min(item['amount'] for item in newstate_data['items'])
+                maxamount = max(item['amount'] for item in newstate_data['items'])
+
+                # generate some general stats
+                summaryrows.append('')
+                summaryrows.append('**Processed:** '+str(totalcount)+' items  ')
+                summaryrows.append('**Time range:** '+itemstimesorted[0]['date']+' - '+itemstimesorted[-1]['date']+'  ')
+                summaryrows.append('**Smallest Amount:** '+str(minamount)+unit+'  ')
+                summaryrows.append('**Largest Amount:** '+str(maxamount)+unit)
+
+                # generate month table
+                summaryrows.append('')
+                summaryrows.append('| Month | Items | Amount |')
+                summaryrows.append('|---|---|---|')
+                for monthitem in monthlyitems:
+                    maxyay = ' :tada:' if largestmonth == monthitem['date'] else ''
+                    mostyay = ' :tada:' if mostmonth == monthitem['date'] else ''
+                    summaryrows.append('| '+monthitem['date']+' | '+str(monthitem['count'])+mostyay+' | '+str(monthitem['amount'])+unit+maxyay+' |')
+                summaryrows.append('')
+
+                # grand total
+                summaryrows.append('**Total:** '+str(total)+unit)
+                summaryrows.append('')
+
+                # post summary
+                summarybody = '\n'.join(summaryrows)
+
+                if summary_id is None:
+                    self.api.post_note(self.project, issue['iid'], summarybody)
+                else:
+                    self.api.update_note(self.project, issue['iid'], summary_id, summarybody)
+
+                return True
+
+            # delete summary if no items in state
+            elif summary_id is not None and len(newstate_data['items']) < 1:
+                self.api.delete_note(self.project, issue['iid'], summary_id)
+                return True
+
+        return False
+
 
 def parse_args():
     """ Parse command line arguments """
@@ -243,6 +381,8 @@ def main():
         if keep.notify_past_due(issue):
             print("Send past due notice for '" + issue['web_url'] + "'")
 
+        if keep.process_counters(issue):
+            print("Process counters for '" + issue['web_url'] + "'")
 
 if __name__ == "__main__":
     try:
