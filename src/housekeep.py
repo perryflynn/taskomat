@@ -7,6 +7,7 @@ import dateutil.parser
 import yaml
 import re
 import itertools
+import urllib.parse
 
 from gitlabutils import api
 
@@ -197,11 +198,12 @@ class Housekeep:
 
         ctr_rgx = re.compile(r"^\!count\s+(?P<amount>[0-9]+(?:\.[0-9]+)?)(?:\s+(?P<timestamp>[0-9]{4}-[0-9]{2}-[0-9]{2}))?\s*$", re.M | re.I)
         unit_rgx = re.compile(r"^\!countunit\s+(?P<unit>[^\s]+)\s*$", re.M | re.I)
+        goal_rgx = re.compile(r"^\!countgoal\s+(?P<goal>[0-9]+(?:\.[0-9]+)?)\s*$", re.M | re.I)
 
         state_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat counter state[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
         state_id = None
         state_data = None
-        newstate_data = { 'last_updated': None, 'unit': None, 'items': [] }
+        newstate_data = { 'last_updated': None, 'unit': None, 'goal': None, 'items': [] }
 
         summary_prefix = '`TaskOMat:countersummary`'
         summary_id = None
@@ -238,6 +240,10 @@ class Housekeep:
                     for _, match in enumerate(unit_rgx.finditer(note['body']), 1):
                         ismatch = True
                         newstate_data['unit'] = match.group('unit')
+
+                    for _, match in enumerate(goal_rgx.finditer(note['body']), 1):
+                        ismatch = True
+                        newstate_data['goal'] = float(match.group('goal'))
 
                     if ismatch:
                         if newstate_data['last_updated'] is None or newstate_data['last_updated'] < note_updated:
@@ -290,6 +296,12 @@ class Housekeep:
                 summaryrows.append('**Time range:** '+itemstimesorted[0]['date']+' - '+itemstimesorted[-1]['date']+'  ')
                 summaryrows.append('**Smallest Amount:** '+str(minamount)+unit+'  ')
                 summaryrows.append('**Largest Amount:** '+str(maxamount)+unit)
+
+                # generate goal stats
+                if newstate_data['goal'] is not None:
+                    summaryrows.append('')
+                    summaryrows.append('**Goal:** '+str(newstate_data['goal'])+unit+'  ')
+                    summaryrows.append('![progress](https://progress-bar.dev/'+str(int(round(total)))+'/?scale='+str(int(round(newstate_data['goal'])))+'&width=200&color=0072ef&suffix='+urllib.parse.quote(unit.strip(), safe='')+')')
 
                 # generate month table
                 summaryrows.append('')
