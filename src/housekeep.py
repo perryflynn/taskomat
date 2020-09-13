@@ -243,6 +243,9 @@ class Housekeep:
                         if newstate_data['last_updated'] is None or newstate_data['last_updated'] < note_updated:
                             newstate_data['last_updated'] = note_updated
 
+            # sort items by date and note_id
+            newstate_data['items'] = list(sorted(newstate_data['items'], key=lambda x: x['date']+'-'+str(x['note_id'])))
+
             # create state
             stateyml = yaml.dump(newstate_data, default_flow_style=None)
             statebody = ":tea: The following config is required for TaskOMat counter to work properly:\n\n```yml\n# TaskOMat counter state\n" + stateyml + "\n```\n"
