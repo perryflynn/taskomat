@@ -292,10 +292,10 @@ class Housekeep:
 
                 # generate some general stats
                 summaryrows.append('')
-                summaryrows.append('**Processed:** '+str(totalcount)+' items  ')
+                summaryrows.append('**Processed:** '+str(round(totalcount, 2))+' items  ')
                 summaryrows.append('**Time range:** '+itemstimesorted[0]['date']+' - '+itemstimesorted[-1]['date']+'  ')
-                summaryrows.append('**Smallest Amount:** '+str(minamount)+unit+'  ')
-                summaryrows.append('**Largest Amount:** '+str(maxamount)+unit)
+                summaryrows.append('**Smallest Amount:** '+str(round(minamount, 2))+unit+'  ')
+                summaryrows.append('**Largest Amount:** '+str(round(maxamount, 2))+unit)
 
                 # generate goal stats
                 if newstate_data['goal'] is not None:
@@ -310,12 +310,12 @@ class Housekeep:
                 for monthitem in monthlyitems:
                     maxyay = ' :tada:' if largestmonth == monthitem['date'] else ''
                     mostyay = ' :tada:' if mostmonth == monthitem['date'] else ''
-                    summaryrows.append('| '+monthitem['date']+' | '+str(monthitem['count'])+mostyay+' | '+str(monthitem['amount'])+unit+maxyay+' |')
+                    summaryrows.append('| '+monthitem['date']+' | '+str(monthitem['count'])+mostyay+' | '+str(round(monthitem['amount'], 2))+unit+maxyay+' |')
                 summaryrows.append('')
 
                 # grand total
-                lastamount = ' (+'+str(newstate_data['items'][-1]['amount'])+unit+' last)' if len(newstate_data['items']) > 0 else ''
-                summaryrows.append('**Total:** '+str(total)+unit+lastamount)
+                lastamount = ' (+'+str(round(newstate_data['items'][-1]['amount'], 2))+unit+' last)' if len(newstate_data['items']) > 0 else ''
+                summaryrows.append('**Total:** '+str(round(total, 2))+unit+lastamount)
                 summaryrows.append('')
 
                 # post summary
