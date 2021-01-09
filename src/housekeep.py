@@ -287,9 +287,12 @@ class Housekeep:
 
                 # generate goal stats
                 if newstate_data['goal'] is not None:
+                    goal = newstate_data['goal']
+                    percentage = 100 * total / goal
+                    suffix = f"% ({int(round(total))}{unit.strip()} of {int(round(goal))}{unit.strip()})"
                     summaryrows.append('')
-                    summaryrows.append('**Goal:** '+str(newstate_data['goal'])+unit+'  ')
-                    summaryrows.append('![progress](https://progress-bar.dev/'+str(int(round(total)))+'/?scale='+str(int(round(newstate_data['goal'])))+'&width=200&color=0072ef&suffix='+urllib.parse.quote(unit.strip(), safe='')+')')
+                    summaryrows.append('**Goal:**  ')
+                    summaryrows.append('![grand progress](https://progress-bar.dev/'+str(int(round(percentage)))+'/?scale=100&width=260&color=0072ef&suffix='+urllib.parse.quote(suffix, safe='')+')')
 
                 # generate month table
                 summaryrows.append('')
