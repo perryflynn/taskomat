@@ -256,18 +256,6 @@ class Housekeep:
             stateyml = yaml.dump(newstate_data, default_flow_style=None)
             statebody = ":tea: The following config is required for TaskOMat counter to work properly:\n\n```yml\n# TaskOMat counter state\n" + stateyml + "\n```\n"
 
-            # update existing state note
-            if state_id is not None and state_data['last_updated'] < newstate_data['last_updated'] and len(newstate_data['items']) > 0:
-                self.api.update_note(self.project, issue['iid'], state_id, statebody)
-
-            # create a new state note
-            elif state_id is None and len(newstate_data['items']) > 0:
-                self.api.post_note(self.project, issue['iid'], statebody)
-
-            # delete state config as the new state has no items
-            elif state_id is not None and len(newstate_data['items']) <= 0:
-                self.api.delete_note(self.project, issue['iid'], state_id)
-
             # create/update summary
             if (summary_id is None or state_data['last_updated'] < newstate_data['last_updated']) and len(newstate_data['items']) > 0:
 
@@ -326,14 +314,24 @@ class Housekeep:
                 else:
                     self.api.update_note(self.project, issue['iid'], summary_id, summarybody)
 
-                return True
-
             # delete summary if no items in state
             elif summary_id is not None and len(newstate_data['items']) < 1:
                 self.api.delete_note(self.project, issue['iid'], summary_id)
+
+            # update existing state note
+            if state_id is not None and state_data['last_updated'] < newstate_data['last_updated'] and len(newstate_data['items']) > 0:
+                self.api.update_note(self.project, issue['iid'], state_id, statebody)
                 return True
 
-        return False
+            # create a new state note
+            elif state_id is None and len(newstate_data['items']) > 0:
+                self.api.post_note(self.project, issue['iid'], statebody)
+                return True
+
+            # delete state config as the new state has no items
+            elif state_id is not None and len(newstate_data['items']) <= 0:
+                self.api.delete_note(self.project, issue['iid'], state_id)
+                return False
 
 
 def parse_args():
