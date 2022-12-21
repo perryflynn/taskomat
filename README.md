@@ -29,7 +29,7 @@ graph TD
     issues --> assign[Assign all unassigned<br>issues to a specific user]
     issues --> milestone[Summarize issues tagged<br>with specific tags in<br>milestones to show a time<br>tracking summary for this tag]
     issues --> lock[Lock discussions<br>for closed issues]
-    issues --> confidential[Set closed issues<br>to confidential]
+    issues --> confidential[Set issues<br>to confidential]
     issues --> isdue{Is issue<br>past due?}
     isdue -->|Yes| delduemsg2[Delete existing<br>due mentions]
     delduemsg2 --> addue[Create past due<br>mention to assignee]

@@ -130,8 +130,9 @@ class Housekeep:
         return False
 
     def ensure_confidential(self, issue):
-        """ Set closed issue to confidential """
-        if issue['state'] == 'closed' and (issue['confidential'] is None or issue['confidential'] != True):
+        """ Set issue to confidential """
+        #if issue['state'] == 'closed' and (issue['confidential'] is None or issue['confidential'] != True):
+        if issue['confidential'] is None or issue['confidential'] != True:
             params = { 'confidential': 'true' }
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['confidential'] = updated['confidential']
