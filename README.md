@@ -28,12 +28,12 @@ graph TD
     hk[Housekeep Cron] --> issues[Get all Issues where<br>updated timestamp is<br>older than 15 minutes]
     issues --> assign[Assign all unassigned<br>issues to a specific user]
     issues --> milestone[Summarize issues tagged<br>with specific tags in<br>milestones to show a time<br>tracking summary for this tag]
-    issues --> lock[Lock discussions<br>for closed issues]
     issues --> confidential[Set issues<br>to confidential]
     issues --> isdue{Is issue<br>past due?}
     isdue -->|Yes| delduemsg2[Delete existing<br>due mentions]
     issues --> isclosed{Is issue<br>closed?}
     isclosed -->|Yes| delwip[Delete<br>Work in Progress<br>label]
+    isclosed --> |Yes| lock[Lock discussions<br>for closed issues]
     delduemsg2 --> addue[Create past due<br>mention to assignee]
     isdue -->|No| delduemsg[Delete existing<br>past due mentions]
 ```
