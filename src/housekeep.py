@@ -134,16 +134,14 @@ class Housekeep:
         
         #if issue['state'] == 'closed' and (issue['confidential'] is None or issue['confidential'] != True):
         
+        is_closed = issue['state'] == 'closed'
         is_public = 'Public' in issue['labels']
-        not_confidential = (issue['confidential'] is None or issue['confidential'] != True)
+        is_confidential = (issue['confidential'] is not None and issue['confidential'] == True)
 
-        change_required = (
-            (not_confidential and not is_public) or
-            (not not_confidential and is_public)
-        )
+        should_confidential = is_closed or not is_public
         
-        if change_required:
-            params = { 'confidential': 'false' if is_public else 'true' }
+        if is_confidential != should_confidential:
+            params = { 'confidential': 'true' if should_confidential else 'false' }
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['confidential'] = updated['confidential']
             return True
