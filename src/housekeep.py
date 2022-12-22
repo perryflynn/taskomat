@@ -148,6 +148,30 @@ class Housekeep:
 
         return False
 
+    def ensure_labels(self, issue):
+        """ Set/Unset labels depending on issue state """
+
+        labels_remove = []
+        labels_add = []
+
+        is_closed = issue['state'] == 'closed'
+        is_wip = 'Work in Progress' in issue['labels']
+
+        if is_closed and is_wip:
+            labels_remove.append('Work in Progress')
+
+        if len(labels_add) > 0 or len(labels_remove) > 0:
+            params = { 
+                'add_labels': ','.join(labels_add), 
+                'remove_labels': ','.join(labels_remove) 
+            }
+            
+            updated = self.api.update_issue(self.project, issue['iid'], params)
+            issue['labels'] = updated['labels']
+            return True
+
+        return False
+
     def notify_past_due(self, issue):
         """ Send mention when the issue is past due """
         prefix = '`housekeep:pastdueinfo`'
@@ -402,6 +426,10 @@ def main():
         # enforce confidential for closed issues
         if keep.ensure_confidential(issue):
             print("Set confidential for '" + issue['web_url'] + "'")
+
+        # enforce certain label rules based on the state of the issue
+        if keep.ensure_labels(issue):
+            print("Touched label list for '" + issue['web_url'] + "'")
 
         # past due notification
         if keep.notify_past_due(issue):
