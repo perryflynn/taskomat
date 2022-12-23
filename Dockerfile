@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM reg.git.brickburg.de/bbcontainers/hub/debian:bullseye-slim
 WORKDIR /
 SHELL [ "/bin/bash", "-c" ]
 
@@ -9,7 +9,7 @@ ADD src /src
 
 RUN apt update && \
     apt-get $APTOPTS upgrade && apt-get $APTOPTS dist-upgrade && \
-    apt-get $APTOPTS install python3 python3-pip python3-wheel python3-setuptools && \
+    apt-get $APTOPTS install python3 python3-pip python3-wheel python3-setuptools jq && \
     apt-get $APTOPTS install -f && \
     apt-get $APTOPTS --purge autoremove && \
     apt-get $APTOPTS clean && \

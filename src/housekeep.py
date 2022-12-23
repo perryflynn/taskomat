@@ -8,6 +8,7 @@ import yaml
 import re
 import itertools
 import urllib.parse
+from pprint import pprint
 
 from gitlabutils import api
 
@@ -23,18 +24,21 @@ class Housekeep:
         self.updated_after = updated_after
         self.updated_before = updated_before
 
-    def get_issues(self):
+    def get_issues(self, issue_iid=None):
         """ Get issues """
-        issues = self.api.get_project_issues(
-            self.project,
-            state='all',
-            labels='',
-            updated_after=self.updated_after,
-            updated_before=self.updated_before
-        )
+        if issue_iid is None or issue_iid <= 0:
+            issues = self.api.get_project_issues(
+                self.project,
+                state='all',
+                labels='',
+                updated_after=self.updated_after,
+                updated_before=self.updated_before
+            )
 
-        for issue in issues:
-            yield issue
+            for issue in issues:
+                yield issue
+        else:
+            yield self.api.get_issue(self.project, issue_iid)
 
     def get_milestones(self):
         """ Get milestones """
@@ -380,6 +384,7 @@ def parse_args():
     parser.add_argument('--milestone-label', metavar='somelabel', action='append', help='Summarize issues with this label in a milestone')
     parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
     parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
+    parser.add_argument('--issue-iid', metavar='42', type=int, default=0, help='Filter for one specific issue iid')
 
     return parser.parse_args()
 
@@ -408,8 +413,10 @@ def main():
         updated_before=updated_before
     )
 
+    pprint(args.issue_iid)
+
     # execute tasks for each issue
-    for issue in keep.get_issues():
+    for issue in keep.get_issues(args.issue_iid if args.issue_iid > 0 else None):
 
         # enforce assignee if none set
         if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
