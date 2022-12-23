@@ -8,7 +8,6 @@ import yaml
 import re
 import itertools
 import urllib.parse
-from pprint import pprint
 
 from gitlabutils import api
 
@@ -412,8 +411,6 @@ def main():
         updated_after=updated_after,
         updated_before=updated_before
     )
-
-    pprint(args.issue_iid)
 
     # execute tasks for each issue
     for issue in keep.get_issues(args.issue_iid if args.issue_iid > 0 else None):
