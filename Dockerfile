@@ -21,4 +21,5 @@ RUN apt update && \
     rm -f /var/log/apt/term.log && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install -r /src/requirements.txt
+RUN chmod a+x /src/*.py && \
+    pip3 install -r /src/requirements.txt
