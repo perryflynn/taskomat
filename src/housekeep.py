@@ -182,6 +182,8 @@ class Housekeep:
             defaultlabels = list(filter(lambda x: x[1], grouplabels))
             defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
 
+            pprint(issue['labels'])
+            pprint(grouplabels)
             pprint(defaultlabels)
             pprint(defaultlabel)
 
