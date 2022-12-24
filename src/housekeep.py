@@ -189,8 +189,8 @@ class Housekeep:
 
             inuse = []
             for grouplabel in grouplabels:
-                if grouplabel in issue['labels']:
-                    inuse.append(grouplabel)
+                if grouplabel[0] in issue['labels']:
+                    inuse.append(grouplabel[0])
             
             pprint(inuse)
 
