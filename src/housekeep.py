@@ -151,18 +151,48 @@ class Housekeep:
 
         return False
 
-    def ensure_labels(self, issue):
+    def parse_labelgroup(self, groupstr):
+        """ Parse a single label group string """
+        temp = groupstr.strip()
+        
+        isdefault = False
+        if temp.endswith('*'):
+            isdefault = True
+        
+        temp = temp.strip('*')
+        return (temp, isdefault)
+
+    def ensure_labels(self, issue, groups):
         """ Set/Unset labels depending on issue state """
 
         labels_remove = []
         labels_add = []
 
+        # remove wip label when ticket closed
         is_closed = issue['state'] == 'closed'
         is_wip = 'Work in Progress' in issue['labels']
 
         if is_closed and is_wip:
             labels_remove.append('Work in Progress')
 
+        # group label rules
+        for groupstr in groups:
+            grouplabels = list(map(self.parse_labelgroup, groupstr.split(',')))
+            defaultlabels = list(filter(lambda x: x[1], grouplabels))
+            defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
+
+            inuse = []
+            for grouplabel in grouplabels:
+                if grouplabel in issue['labels']:
+                    inuse.append(grouplabel)
+            
+            if len(inuse) > 1:
+                for toremove in inuse[:-1]:
+                    labels_remove.append(toremove)
+            elif len(inuse) <= 0:
+                labels_add.append(defaultlabel)
+
+        # apply changes
         if len(labels_add) > 0 or len(labels_remove) > 0:
             params = { 
                 'add_labels': ','.join(labels_add), 
@@ -381,6 +411,7 @@ def parse_args():
     parser.add_argument('--project', metavar='johndoe/todos', type=str, required=True, help='GitLab project')
     parser.add_argument('--assignee', metavar=42, type=int, default=0, help='Assign issue to this user id if unassigned')
     parser.add_argument('--milestone-label', metavar='somelabel', action='append', help='Summarize issues with this label in a milestone')
+    parser.add_argument('--label-group', metavar='somelabel', action='append', help='Group label and assign default label to issues')
     parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
     parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
     parser.add_argument('--issue-iid', metavar='42', type=int, default=0, help='Filter for one specific issue iid')
@@ -432,7 +463,7 @@ def main():
             print("Set confidential for '" + issue['web_url'] + "'")
 
         # enforce certain label rules based on the state of the issue
-        if keep.ensure_labels(issue):
+        if keep.ensure_labels(issue, args.label_group):
             print("Touched label list for '" + issue['web_url'] + "'")
 
         # past due notification
