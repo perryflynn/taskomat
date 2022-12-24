@@ -181,6 +181,7 @@ class Housekeep:
             grouplabels = list(map(self.parse_labelgroup, groupstr.split(',')))
             defaultlabels = list(filter(lambda x: x[1], grouplabels))
             defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
+            grouplabels = list(map(lambda x: x[0], grouplabels))
 
             pprint(issue['labels'])
             pprint(grouplabels)
@@ -188,9 +189,9 @@ class Housekeep:
             pprint(defaultlabel)
 
             inuse = []
-            for grouplabel in grouplabels:
-                if grouplabel[0] in issue['labels']:
-                    inuse.append(grouplabel[0])
+            for issuelabel in issue['labels']:
+                if issuelabel in grouplabels:
+                    inuse.append(issuelabel)
             
             pprint(inuse)
 
