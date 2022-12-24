@@ -176,6 +176,11 @@ class Housekeep:
         if is_closed and is_wip:
             labels_remove.append('Work in Progress')
 
+        # get label events
+        labelevents = []
+        if len(groups) > 0:
+            labelevents = list(sorted(filter(lambda x: x['action'] == 'add', self.api.get_issue_label_events(self.project, issue['iid'])), key=lambda x: x['created_at'], reverse=True))
+
         # group label rules
         for groupstr in groups:
             grouplabels = list(map(self.parse_labelgroup, groupstr.split(',')))
@@ -193,11 +198,16 @@ class Housekeep:
                 if issuelabel in grouplabels:
                     inuse.append(issuelabel)
             
-            pprint(inuse)
-
             if len(inuse) > 1:
-                for toremove in inuse[:-1]:
-                    labels_remove.append(toremove)
+                usedlabelevents = list(filter(lambda x: x['label']['name'] in inuse, labelevents))
+                if len(usedlabelevents) > 0:
+                    labels_remove += list(filter(lambda x: x != usedlabelevents[0]['label']['name'], inuse))
+                    print('remove by events')
+                else:
+                    for toremove in inuse[:-1]:
+                        labels_remove.append(toremove)
+                    print('remove by array slice')
+            
             elif len(inuse) <= 0 and defaultlabel is not None:
                 labels_add.append(defaultlabel)
 

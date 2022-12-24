@@ -122,6 +122,31 @@ class GitLabApi:
 
         return
 
+    def get_issue_label_events(self, project, issue_iid):
+        """ Get label events from a issue """
+        item_count = 100
+        page_count = 1
+
+        url = self.url + '/api/v4/projects/' + urllib.parse.quote(project, safe='') + '/issues/' + str(issue_iid) + '/resource_label_events'
+        headers = { 'PRIVATE-TOKEN': self.token }
+        params = { 'page': 0, 'per_page': item_count }
+
+        while True:
+            # fetch a page of issue notes
+            params['page'] = page_count
+            r = requests.get(url, params=params, headers=headers)
+            item_buffer = r.json()
+
+            for item in item_buffer:
+                yield item
+
+            # next page until non-full buffer
+            page_count += 1
+            if len(item_buffer) < item_count:
+                break
+
+        return
+
     def post_issue(self, project, title, body, labels=[], assignee_ids=[], due_date=''):
         """ Post a new issue """
         issue_url = self.url + '/api/v4/projects/' + urllib.parse.quote(project, safe='') + '/issues'
