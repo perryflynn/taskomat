@@ -8,7 +8,6 @@ import yaml
 import re
 import itertools
 import urllib.parse
-from pprint import pprint
 
 from gitlabutils import api
 
@@ -188,31 +187,25 @@ class Housekeep:
             defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
             grouplabels = list(map(lambda x: x[0], grouplabels))
 
-            pprint(issue['labels'])
-            pprint(grouplabels)
-            pprint(defaultlabels)
-            pprint(defaultlabel)
-
+            # find used tags from the current group
             inuse = []
             for issuelabel in issue['labels']:
                 if issuelabel in grouplabels:
                     inuse.append(issuelabel)
             
+            # remove label if more than one from the current group
             if len(inuse) > 1:
                 usedlabelevents = list(filter(lambda x: x['label']['name'] in inuse, labelevents))
                 if len(usedlabelevents) > 0:
+                    # remove label by event stream
                     labels_remove += list(filter(lambda x: x != usedlabelevents[0]['label']['name'], inuse))
-                    print('remove by events')
                 else:
+                    # remove by list slice since event stream is empty
                     for toremove in inuse[:-1]:
                         labels_remove.append(toremove)
-                    print('remove by array slice')
             
             elif len(inuse) <= 0 and defaultlabel is not None:
                 labels_add.append(defaultlabel)
-
-            pprint(labels_remove)
-            pprint(labels_add)
 
         # apply changes
         if len(labels_add) > 0 or len(labels_remove) > 0:
