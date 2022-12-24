@@ -189,7 +189,7 @@ class Housekeep:
             if len(inuse) > 1:
                 for toremove in inuse[:-1]:
                     labels_remove.append(toremove)
-            elif len(inuse) <= 0:
+            elif len(inuse) <= 0 and defaultlabel is not None:
                 labels_add.append(defaultlabel)
 
         # apply changes
