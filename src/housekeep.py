@@ -171,9 +171,13 @@ class Housekeep:
         # remove wip label when ticket closed
         is_closed = issue['state'] == 'closed'
         is_wip = 'Work in Progress' in issue['labels']
+        is_onhold = 'On Hold' in issue['labels']
 
         if is_closed and is_wip:
             labels_remove.append('Work in Progress')
+
+        if is_closed and is_onhold:
+            labels_remove.append('On Hold')
 
         # get label events
         labelevents = []
