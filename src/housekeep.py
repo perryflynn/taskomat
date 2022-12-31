@@ -9,6 +9,8 @@ import re
 import itertools
 import urllib.parse
 
+from pprint import pprint
+
 from gitlabutils import api
 
 
@@ -39,6 +41,9 @@ class Housekeep:
         
         else:
             singleissue = self.api.get_issue(self.project, issue_iid)
+
+            pprint(singleissue)
+
             if singleissue is None:
                 return []
             else:
