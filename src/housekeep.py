@@ -122,6 +122,16 @@ class Housekeep:
 
         return False
 
+    def ensure_obsolete(self, issue):
+        """ Ensure obsolete issues are closed """
+        if issue['state'] == 'opened' and 'Obsolete' in issue['labels']:
+            params = { 'state_event': 'close' }
+            updated = self.api.update_issue(self.project, issue['iid'], params)
+            issue['state'] = updated['state']
+            return True
+
+        return False
+
     def ensure_locked(self, issue):
         """ Lock closed issue """
         if issue['state'] == 'closed' and (issue['discussion_locked'] is None or issue['discussion_locked'] != True):
@@ -467,30 +477,34 @@ def main():
 
         # enforce assignee if none set
         if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
-            print("Set assignee for '" + issue['web_url'] + "'")
+            print("Set assignee for " + issue['web_url'])
 
         # assign milestone by label
         if keep.ensure_milestone(issue, args.milestone_label):
-            print("Set milestone for '" + issue['web_url'] + "'")
+            print("Set milestone for " + issue['web_url'])
+
+        # enforce closed state for obsolete issues
+        if keep.ensure_obsolete(issue):
+            print("Set obsolete issue closed for " + issue['web_url'])
 
         # enforce locked discussion for closed issues
         if keep.ensure_locked(issue):
-            print("Set locked for '" + issue['web_url'] + "'")
+            print("Set locked for " + issue['web_url'])
 
         # enforce confidential for closed issues
         if keep.ensure_confidential(issue):
-            print("Set confidential for '" + issue['web_url'] + "'")
+            print("Set confidential for " + issue['web_url'])
 
         # enforce certain label rules based on the state of the issue
         if keep.ensure_labels(issue, args.label_group):
-            print("Touched label list for '" + issue['web_url'] + "'")
+            print("Touched label list for " + issue['web_url'])
 
         # past due notification
         if keep.notify_past_due(issue):
-            print("Send past due notice for '" + issue['web_url'] + "'")
+            print("Send past due notice for " + issue['web_url'])
 
         if keep.process_counters(issue):
-            print("Process counters for '" + issue['web_url'] + "'")
+            print("Process counters for " + issue['web_url'])
 
 if __name__ == "__main__":
     try:

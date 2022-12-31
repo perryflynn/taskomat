@@ -27,12 +27,14 @@ This cron ensures certain rules on all issues.
     --max-updated-age 2592000 \
     --milestone-label Bürokratie \
     --milestone-label Wohnung \
+    --label-group "low,medium*,high" \
     [--issue-iid 42]
 ```
 
 ```mermaid
 graph TD
-    hk[Housekeep Cron] --> issues[Get all Issues where<br>updated timestamp is<br>older than 15 minutes]
+    hk[Housekeep Cron] --> issues[Get all Issues where<br>updated timestamp is<br>older than 15 minutes<br>or a single issue]
+    wekhook[Webhook] --> issues
     issues --> assign[Assign all unassigned<br>issues to a specific user]
     issues --> milestone[Summarize issues tagged<br>with specific tags in<br>milestones to show a time<br>tracking summary for this tag]
     issues --> ispublic{Has issue<br>Public label?}
@@ -42,12 +44,23 @@ graph TD
     isdue -->|Yes| delduemsg2[Delete existing<br>due mentions]
     issues --> isclosed{Is issue<br>closed?}
     isclosed -->|Yes| delwip[Delete<br>Work in Progress<br>label]
-    delwip --> lock[Lock discussions]
+    delwip --> delonhold[Delete<br>On Hold<br>label]
+    delonhold --> lock[Lock discussions]
     delduemsg2 --> addue[Create past due<br>mention to assignee]
     isdue -->|No| delduemsg[Delete existing<br>past due mentions]
     issues --> iscounter{Has issue<br>Counter label?}
+    issues --> isobsolete{Has issue<br>Obsolete label?}
+    isobsolete -->|Yes| close[Close issue]
     iscounter -->|Yes| countit[Process Counter<br>Bot commands]
 ```
+
+### Label Groups
+
+The `--label-group "low,medium*,high"` feature ensures that only the latest label
+mentioned in the list is present in the issue. If one label is marked with a `*`,
+it will be added automatically of none of the labels are present.
+
+This works similar to the [Scoped Labels of GitLab Premium](https://docs.gitlab.com/ee/user/project/labels.html#scoped-labels).
 
 ### Counter
 
