@@ -95,7 +95,12 @@ class GitLabApi:
         """ Get a single issue by id """
         url = self.url + '/api/v4/projects/' + urllib.parse.quote(project, safe='') + '/issues/' + str(issue_iid)
         headers = { 'PRIVATE-TOKEN': self.token }
-        return requests.get(url, headers=headers).json()
+        response = requests.get(url, headers=headers).json()
+        
+        if 'error' in response:
+            return None
+        
+        return response
 
     def get_issue_notes(self, project, issue_iid, sort='desc', order_by='updated_at'):
         """ Get notes from a issue """
