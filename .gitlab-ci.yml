@@ -18,9 +18,6 @@ variables:
     - "docker image prune -f"
   tags:
     - docker
-  except:
-    changes:
-      - "*.md"
 
 #
 # -> Jobs
