@@ -9,8 +9,6 @@ import re
 import itertools
 import urllib.parse
 
-from pprint import pprint
-
 from gitlabutils import api
 
 
@@ -481,8 +479,6 @@ def main():
     hasprocessed = False
     for issue in keep.get_issues(args.issue_iid if args.issue_iid > 0 else None):
         hasprocessed = True
-
-        pprint(issue)
 
         # enforce assignee if none set
         if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
