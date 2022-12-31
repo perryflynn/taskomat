@@ -41,13 +41,8 @@ class Housekeep:
         
         else:
             singleissue = self.api.get_issue(self.project, issue_iid)
-
-            pprint(singleissue)
-
-            if singleissue is None:
-                return []
-            else:
-                return [ singleissue ]
+            if singleissue is not None:
+                yield singleissue
 
     def get_milestones(self):
         """ Get milestones """
