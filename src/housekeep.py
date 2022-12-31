@@ -39,10 +39,10 @@ class Housekeep:
         
         else:
             singleissue = self.api.get_issue(self.project, issue_iid)
-            if singleissue is not None:
-                return [ singleissue ]
-            else:
+            if singleissue is None:
                 return []
+            else:
+                return [ singleissue ]
 
     def get_milestones(self):
         """ Get milestones """
@@ -510,6 +510,9 @@ def main():
 
         if keep.process_counters(issue):
             print("Process counters for " + issue['web_url'])
+
+    else:
+        print('No issues found.')
 
 if __name__ == "__main__":
     try:
