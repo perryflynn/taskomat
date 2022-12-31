@@ -478,7 +478,9 @@ def main():
     )
 
     # execute tasks for each issue
+    hasprocessed = False
     for issue in keep.get_issues(args.issue_iid if args.issue_iid > 0 else None):
+        hasprocessed = True
 
         # enforce assignee if none set
         if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
@@ -511,7 +513,7 @@ def main():
         if keep.process_counters(issue):
             print("Process counters for " + issue['web_url'])
 
-    else:
+    if not hasprocessed:
         print('No issues found.')
 
 if __name__ == "__main__":
