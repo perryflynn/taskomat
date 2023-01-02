@@ -76,7 +76,7 @@ class GitLabApi:
         }
 
         if iids and len(iids) > 0:
-            params['iids[]'] = iids
+            params['iids[]'] = list(map(str, iids))
 
         while True:
             # fetch a page of issues

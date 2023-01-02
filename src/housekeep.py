@@ -489,7 +489,7 @@ def main():
                 issue_iids.append(int(temp_iid))
 
     if len(issue_iids) > 0:
-        print(f"Issue IIDs: {', '.join(issue_iids)}")
+        print(f"Issue IIDs: {', '.join(map(str, issue_iids))}")
 
     hasprocessed = False
     for issue in keep.get_issues(issue_iids if len(issue_iids) > 0 else None):
