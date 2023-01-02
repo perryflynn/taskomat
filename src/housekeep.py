@@ -23,9 +23,14 @@ class Housekeep:
         self.updated_after = updated_after
         self.updated_before = updated_before
 
-    def get_issues(self, issue_iid=None):
+    def get_issues(self, issue_iids=None):
         """ Get issues """
-        if issue_iid is None or issue_iid <= 0:
+        issues = []
+
+        if issue_iids and len(issue_iids) > 0:
+            issues = self.api.get_project_issues(self.project, iids=issue_iids)
+
+        else:
             issues = self.api.get_project_issues(
                 self.project,
                 state='all',
@@ -34,14 +39,9 @@ class Housekeep:
                 updated_before=self.updated_before
             )
 
-            for issue in issues:
-                yield issue
+        for issue in issues:
+            yield issue
         
-        else:
-            singleissue = self.api.get_issue(self.project, issue_iid)
-            if singleissue is not None:
-                yield singleissue
-
     def get_milestones(self):
         """ Get milestones """
         cfg_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat config[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
@@ -447,6 +447,7 @@ def parse_args():
     parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
     parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
     parser.add_argument('--issue-iid', metavar='42', type=int, default=0, help='Filter for one specific issue iid')
+    parser.add_argument('--issue-iids', metavar='40,41,42', type=str, default='', help='Filter for a comma separated list of issue iid')
 
     return parser.parse_args()
 
@@ -476,8 +477,22 @@ def main():
     )
 
     # execute tasks for each issue
+    issue_iids = []
+
+    if args.issue_iid and args.issue_iid > 0:
+        issue_iids.append(args.issue_iid)
+
+    if args.issue_iids:
+        temp = args.issue_iids
+        for temp_iid in map(lambda x: x.strip(), temp.split(',')):
+            if temp_iid:
+                issue_iids.append(int(temp_iid))
+
+    if len(issue_iids) > 0:
+        print(f"Issue IIDs: {', '.join(issue_iids)}")
+
     hasprocessed = False
-    for issue in keep.get_issues(args.issue_iid if args.issue_iid > 0 else None):
+    for issue in keep.get_issues(issue_iids if len(issue_iids) > 0 else None):
         hasprocessed = True
 
         # enforce assignee if none set

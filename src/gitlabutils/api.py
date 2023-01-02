@@ -49,7 +49,7 @@ class GitLabApi:
 
         return requests.post(issue_url, headers=issue_headers, params=issue_params).json()
 
-    def get_project_issues(self, project, state='opened', labels='', updated_before=None, updated_after=None):
+    def get_project_issues(self, project, state='opened', labels='', updated_before=None, updated_after=None, iids=None):
         """ Get all issues """
         self.issues = []
         item_buffer = []
@@ -74,6 +74,9 @@ class GitLabApi:
             'updated_before': updated_before_str,
             'updated_after': updated_after_str
         }
+
+        if iids and len(iids) > 0:
+            params['iids[]'] = iids
 
         while True:
             # fetch a page of issues
