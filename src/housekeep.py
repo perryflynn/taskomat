@@ -28,7 +28,11 @@ class Housekeep:
         issues = []
 
         if issue_iids and len(issue_iids) > 0:
-            issues = self.api.get_project_issues(self.project, iids=issue_iids)
+            issues = self.api.get_project_issues(
+                self.project, 
+                state='all', 
+                iids=issue_iids
+            )
 
         else:
             issues = self.api.get_project_issues(
