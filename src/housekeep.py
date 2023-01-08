@@ -256,7 +256,7 @@ class Housekeep:
                 labels_add.append(categorylabel)
             
             # remove category if no label is assigned
-            elif: not hasexpected and hascategory:
+            elif not hasexpected and hascategory:
                 labels_remove.append(categorylabel)
 
         # apply changes
