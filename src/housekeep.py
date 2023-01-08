@@ -552,7 +552,10 @@ def main():
             print("Set confidential for " + issue['web_url'])
 
         # enforce certain label rules based on the state of the issue
-        if keep.ensure_labels(issue, args.label_group, args.label_category):
+        labelgroups = args.label_group if args.label_group and len(args.label_group) > 0 else []
+        labelcategories = args.label_category if args.label_category and len(args.label_category) > 0 else []
+        
+        if keep.ensure_labels(issue, labelgroups, labelcategories):
             print("Touched label list for " + issue['web_url'])
 
         # past due notification
