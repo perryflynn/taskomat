@@ -12,6 +12,13 @@ import urllib.parse
 from gitlabutils import api
 
 
+LABEL_OBSOLETE = 'Workflow:Obsolete'
+LABEL_PUBLIC = 'Workflow:Public'
+LABEL_WIP = 'Workflow:Work in Progress'
+LABEL_HOLD = 'Workflow:On Hold'
+LABEL_TASKOMAT_COUNTER = 'TaskOMat:Counter'
+
+
 class Housekeep:
     """ Housekeep functions """
 
@@ -45,93 +52,93 @@ class Housekeep:
 
         for issue in issues:
             yield issue
-        
-    def get_milestones(self):
-        """ Get milestones """
-        cfg_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat config[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
-        for milestone in self.api.get_project_milestones(self.project, state='active'):
-            match = cfg_rgx.search(str(milestone['description']))
-            if match:
-                # parse config and return
-                try:
-                    milestone['taskomat'] = yaml.load(match.group(1), Loader=yaml.FullLoader)
-                    if 'label' in milestone['taskomat'].keys() and 'year' in milestone['taskomat'].keys():
-                        yield milestone
-                except:
-                    pass
 
-    def create_labelmilestone_config(self, label, year):
-        """ Generate TaskOMat config text """
-        cfgyml = yaml.dump({ 'label': label, 'year': year }, default_flow_style=False)
-        return ":tea: This milestone is maintained by TaskOMat Housekeep:\n\n```yml\n# TaskOMat config\n" + cfgyml + "\n```\n"
+    # def ensure_assignee(self, issue, assignee_ids=[]):
+    #     """ Assign someone when no one is assigned """
+    #     do_assign = (
+    #         'assignees' in issue.keys() and isinstance(issue['assignees'], list) and len(issue['assignees']) < 1
+    #         and isinstance(assignee_ids, list) and len(assignee_ids) > 0
+    #     )
 
-    def ensure_assignee(self, issue, assignee_ids=[]):
-        """ Assign someone when no one is assigned """
-        do_assign = (
-            'assignees' in issue.keys() and isinstance(issue['assignees'], list) and len(issue['assignees']) < 1
-            and isinstance(assignee_ids, list) and len(assignee_ids) > 0
-        )
+    #     if do_assign:
+    #         params = { 'assignee_ids': assignee_ids }
+    #         updated = self.api.update_issue(self.project, issue['iid'], params)
+    #         issue['assignees'] = updated['assignees']
+    #         return True
 
-        if do_assign:
-            params = { 'assignee_ids': assignee_ids }
-            updated = self.api.update_issue(self.project, issue['iid'], params)
-            issue['assignees'] = updated['assignees']
-            return True
+    #    return False
 
-        return False
+    # def get_milestones(self):
+    #     """ Get milestones """
+    #     cfg_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat config[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
+    #     for milestone in self.api.get_project_milestones(self.project, state='active'):
+    #         match = cfg_rgx.search(str(milestone['description']))
+    #         if match:
+    #             # parse config and return
+    #             try:
+    #                 milestone['taskomat'] = yaml.load(match.group(1), Loader=yaml.FullLoader)
+    #                 if 'label' in milestone['taskomat'].keys() and 'year' in milestone['taskomat'].keys():
+    #                     yield milestone
+    #             except:
+    #                 pass
 
-    def ensure_milestone(self, issue, labels):
-        """ Assign issue to a collection milestone """
-        year = max([
-            int((issue['updated_at'] if issue['updated_at'] else '0000')[0:4]),
-            int((issue['due_date'] if issue['due_date'] else '0000')[0:4])
-        ])
+    # def create_labelmilestone_config(self, label, year):
+    #     """ Generate TaskOMat config text """
+    #     cfgyml = yaml.dump({ 'label': label, 'year': year }, default_flow_style=False)
+    #     return ":tea: This milestone is maintained by TaskOMat Housekeep:\n\n```yml\n# TaskOMat config\n" + cfgyml + "\n```\n"
 
-        if self.milestones is None:
-            self.milestones = list(self.get_milestones())
+    # def ensure_milestone(self, issue, labels):
+    #     """ Assign issue to a collection milestone """
+    #     year = max([
+    #         int((issue['updated_at'] if issue['updated_at'] else '0000')[0:4]),
+    #         int((issue['due_date'] if issue['due_date'] else '0000')[0:4])
+    #     ])
 
-        # assign a milestone
-        if not issue['milestone']:
-            issue_labels = list(filter(lambda x: x in labels, issue['labels']))
-            if len(issue_labels) > 0:
+    #     if self.milestones is None:
+    #         self.milestones = list(self.get_milestones())
 
-                label_ms = list(filter(lambda x: x['taskomat']['label'] == issue_labels[0] and x['taskomat']['year'] == year, self.milestones))
-                milestone_id = label_ms[0]['id'] if len(label_ms) > 0 else -1
+    #     # assign a milestone
+    #     if not issue['milestone']:
+    #         issue_labels = list(filter(lambda x: x in labels, issue['labels']))
+    #         if len(issue_labels) > 0:
 
-                # create milestone if missing
-                if milestone_id <= 0:
-                    ms_due_start = str(year) + '-01-01'
-                    ms_due_end = str(year) + '-12-31'
-                    ms_name = issue_labels[0] + ' ' + str(year)
-                    ms_description = self.create_labelmilestone_config(issue_labels[0], year)
+    #             label_ms = list(filter(lambda x: x['taskomat']['label'] == issue_labels[0] and x['taskomat']['year'] == year, self.milestones))
+    #             milestone_id = label_ms[0]['id'] if len(label_ms) > 0 else -1
 
-                    new_milestone = self.api.post_project_milestone(self.project, ms_name, ms_description, ms_due_end, ms_due_start)
-                    milestone_id = new_milestone['id']
+    #             # create milestone if missing
+    #             if milestone_id <= 0:
+    #                 ms_due_start = str(year) + '-01-01'
+    #                 ms_due_end = str(year) + '-12-31'
+    #                 ms_name = issue_labels[0] + ' ' + str(year)
+    #                 ms_description = self.create_labelmilestone_config(issue_labels[0], year)
 
-                    self.milestones = list(self.get_milestones())
+    #                 new_milestone = self.api.post_project_milestone(self.project, ms_name, ms_description, ms_due_end, ms_due_start)
+    #                 milestone_id = new_milestone['id']
 
-                # update issue
-                params = { 'milestone_id': milestone_id }
-                updated = self.api.update_issue(self.project, issue['iid'], params)
-                issue['milestone'] = updated['milestone']
-                return True
+    #                 self.milestones = list(self.get_milestones())
 
-        # unassign if the issue has not the required tag
-        else:
-            label_ms = list(filter(lambda x: x['id'] == issue['milestone']['id'], self.milestones))
-            if len(label_ms) > 0 and label_ms[0]['taskomat']['label'] not in issue['labels']:
+    #             # update issue
+    #             params = { 'milestone_id': milestone_id }
+    #             updated = self.api.update_issue(self.project, issue['iid'], params)
+    #             issue['milestone'] = updated['milestone']
+    #             return True
 
-                # update issue
-                params = { 'milestone_id': 0 }
-                updated = self.api.update_issue(self.project, issue['iid'], params)
-                issue['milestone'] = updated['milestone']
-                return True
+    #     # unassign if the issue has not the required tag
+    #     else:
+    #         label_ms = list(filter(lambda x: x['id'] == issue['milestone']['id'], self.milestones))
+    #         if len(label_ms) > 0 and label_ms[0]['taskomat']['label'] not in issue['labels']:
 
-        return False
+    #             # update issue
+    #             params = { 'milestone_id': 0 }
+    #             updated = self.api.update_issue(self.project, issue['iid'], params)
+    #             issue['milestone'] = updated['milestone']
+    #             return True
+
+    #     return False
 
     def ensure_obsolete(self, issue):
         """ Ensure obsolete issues are closed """
-        if issue['state'] == 'opened' and 'Obsolete' in issue['labels']:
+        if issue['state'] == 'opened' and LABEL_OBSOLETE in issue['labels']:
             params = { 'state_event': 'close' }
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['state'] = updated['state']
@@ -152,10 +159,8 @@ class Housekeep:
     def ensure_confidential(self, issue):
         """ Set issue to confidential """
         
-        #if issue['state'] == 'closed' and (issue['confidential'] is None or issue['confidential'] != True):
-        
         is_closed = issue['state'] == 'closed'
-        is_public = 'Public' in issue['labels']
+        is_public = LABEL_PUBLIC in issue['labels']
         is_confidential = (issue['confidential'] is not None and issue['confidential'] == True)
 
         should_confidential = is_closed or not is_public
@@ -168,7 +173,7 @@ class Housekeep:
 
         return False
 
-    def parse_labelgroup(self, groupstr):
+    def _parse_labelgroup(self, groupstr):
         """ Parse a single label group string """
         temp = groupstr.strip()
         
@@ -179,7 +184,7 @@ class Housekeep:
         temp = temp.strip('*')
         return (temp, isdefault)
 
-    def ensure_labels(self, issue, groups):
+    def ensure_labels(self, issue, groups, categories):
         """ Set/Unset labels depending on issue state """
 
         labels_remove = []
@@ -187,14 +192,14 @@ class Housekeep:
 
         # remove wip label when ticket closed
         is_closed = issue['state'] == 'closed'
-        is_wip = 'Work in Progress' in issue['labels']
-        is_onhold = 'On Hold' in issue['labels']
+        is_wip = LABEL_WIP in issue['labels']
+        is_onhold = LABEL_HOLD in issue['labels']
 
         if is_closed and is_wip:
-            labels_remove.append('Work in Progress')
+            labels_remove.append(LABEL_WIP)
 
         if is_closed and is_onhold:
-            labels_remove.append('On Hold')
+            labels_remove.append(LABEL_HOLD)
 
         # get label events
         labelevents = []
@@ -203,7 +208,7 @@ class Housekeep:
 
         # group label rules
         for groupstr in groups:
-            grouplabels = list(map(self.parse_labelgroup, groupstr.split(',')))
+            grouplabels = list(map(self._parse_labelgroup, groupstr.split(',')))
             defaultlabels = list(filter(lambda x: x[1], grouplabels))
             defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
             grouplabels = list(map(lambda x: x[0], grouplabels))
@@ -227,6 +232,32 @@ class Housekeep:
             
             elif len(inuse) <= 0 and defaultlabel is not None:
                 labels_add.append(defaultlabel)
+
+        # label category rules
+        for categorystr in categories:
+            categorylabels = list(map(lambda x: x[0], map(self._parse_labelgroup, categorystr.split(','))))
+
+            if len(categorylabels) < 2:
+                print(f"Invalid category label str: {categorystr}")
+                continue
+
+            expectedlabels = categorylabels[:-1]
+            categorylabel = categorylabels[-1]
+
+            # find used tags from the current group
+            hascategory = categorylabel in issue['labels']
+            hasexpected = False
+            for issuelabel in issue['labels']:
+                if issuelabel in expectedlabels:
+                    hasexpected = True
+            
+            # add category if any label is assigned
+            if hasexpected and not hascategory:
+                labels_add.append(categorylabel)
+            
+            # remove category if no label is assigned
+            elif: not hasexpected and hascategory:
+                labels_remove.append(categorylabel)
 
         # apply changes
         if len(labels_add) > 0 or len(labels_remove) > 0:
@@ -310,7 +341,7 @@ class Housekeep:
         summary_prefix = '`TaskOMat:countersummary`'
         summary_id = None
 
-        if 'Counter' in issue['labels']:
+        if LABEL_TASKOMAT_COUNTER in issue['labels']:
 
             # iterate all notes
             for note in self.api.get_issue_notes(self.project, issue['iid']):
@@ -448,6 +479,7 @@ def parse_args():
     parser.add_argument('--assignee', metavar=42, type=int, default=0, help='Assign issue to this user id if unassigned')
     parser.add_argument('--milestone-label', metavar='somelabel', action='append', help='Summarize issues with this label in a milestone')
     parser.add_argument('--label-group', metavar='somelabel', action='append', help='Group label and assign default label to issues')
+    parser.add_argument('--label-category', metavar='somelabel,someotherlabel', action='append', help='Add the last label in the list if one of the others are assigned to the issue')
     parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
     parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
     parser.add_argument('--issue-iid', metavar='42', type=int, default=0, help='Filter for one specific issue iid')
@@ -500,12 +532,12 @@ def main():
         hasprocessed = True
 
         # enforce assignee if none set
-        if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
-            print("Set assignee for " + issue['web_url'])
+        #if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
+        #    print("Set assignee for " + issue['web_url'])
 
         # assign milestone by label
-        if keep.ensure_milestone(issue, args.milestone_label):
-            print("Set milestone for " + issue['web_url'])
+        #if keep.ensure_milestone(issue, args.milestone_label):
+        #    print("Set milestone for " + issue['web_url'])
 
         # enforce closed state for obsolete issues
         if keep.ensure_obsolete(issue):
@@ -520,7 +552,7 @@ def main():
             print("Set confidential for " + issue['web_url'])
 
         # enforce certain label rules based on the state of the issue
-        if keep.ensure_labels(issue, args.label_group):
+        if keep.ensure_labels(issue, args.label_group, args.label_category):
             print("Touched label list for " + issue['web_url'])
 
         # past due notification

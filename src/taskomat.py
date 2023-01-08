@@ -12,6 +12,9 @@ import dateutil.relativedelta
 from gitlabutils import api
 
 
+LABEL_SELF = 'TaskOMat:Generated'
+
+
 class TaskOMat:
     """ TaskOMat Business logic """
 
@@ -19,7 +22,7 @@ class TaskOMat:
         """ Initialize class """
         self.api = api.GitLabApi(gitlab_url, gitlab_token)
         self.project = gitlab_project
-        self.label = 'TaskOMat'
+        self.label = LABEL_SELF
         self.dir = collection_dir
         self.updated_after = updated_after
         self.issues = None
