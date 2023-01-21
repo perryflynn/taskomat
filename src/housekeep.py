@@ -231,10 +231,11 @@ class Housekeep:
             else:
 
                 # delete existing notes
-                for notinote in notinotes:
-                    self.api.delete_note(self.project, issue['iid'], notinote['id'])
-                
-                return (True, [ 'past_due_note=deleted' ])
+                if len(notinotes) > 0:
+                    for notinote in notinotes:
+                        self.api.delete_note(self.project, issue['iid'], notinote['id'])
+                    
+                    return (True, [ 'past_due_note=deleted' ])
 
         return (False, [])
 
