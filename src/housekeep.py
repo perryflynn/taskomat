@@ -466,9 +466,11 @@ def main():
     if len(issue_iids) > 0:
         print(f"Issue IIDs: {', '.join(map(str, issue_iids))}")
 
-    ctr = 0
+    ctr_issues = 0
+    ctr_processed = 0
+    
     for issue in keep.get_issues(issue_iids if len(issue_iids) > 0 else None):
-        ctr += 1
+        ctr_issues += 1
         messages = []
 
         # enforce closed state for obsolete issues
@@ -500,9 +502,10 @@ def main():
 
         # result
         if len(messages) > 0:
+            ctr_processed += 1
             print(f"Touched issue #{issue['iid']}: {', '.join(messages)}")
 
-    print(f"{ctr} issues processed")
+    print(f"Processed {ctr_processed} of {ctr_issues} issues")
 
 if __name__ == "__main__":
     try:
