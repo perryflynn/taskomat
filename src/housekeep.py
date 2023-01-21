@@ -391,6 +391,8 @@ class Housekeep:
                 self.api.delete_note(self.project, issue['iid'], state_id)
                 return (False, [])
 
+        return (False, [])
+
 
 def parse_args():
     """ Parse command line arguments """
