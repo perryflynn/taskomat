@@ -472,30 +472,30 @@ def main():
 
         # enforce closed state for obsolete issues
         if args.close_obsolete:
-            messages += keep.ensure_obsolete(issue)
+            messages += keep.ensure_obsolete(issue)[1]
 
         # enforce locked discussion for closed issues
         if args.lock_closed:
-            messages += keep.ensure_locked(issue)
+            messages += keep.ensure_locked(issue)[1]
 
         # enforce confidential for closed issues
         if args.set_confidential:
-            messages += keep.ensure_confidential(issue)
+            messages += keep.ensure_confidential(issue)[1]
 
         # enforce certain label rules based on the state of the issue
         labelgroups = args.label_group if args.label_group and len(args.label_group) > 0 else []
         labelcategories = args.label_category if args.label_category and len(args.label_category) > 0 else []
         closedlabels = args.closed_remove_labels if args.closed_remove_labels and len(args.closed_remove_labels) > 0 else []
         
-        messages += keep.ensure_labels(issue, labelgroups, labelcategories, closedlabels)
+        messages += keep.ensure_labels(issue, labelgroups, labelcategories, closedlabels)[1]
 
         # past due notification
         if args.notify_due:
-            messages += keep.notify_past_due(issue)
+            messages += keep.notify_past_due(issue)[1]
 
         # process counter
         if args.counters:
-            messages += keep.process_counters(issue)
+            messages += keep.process_counters(issue)[1]
 
         # result
         if len(messages) > 0:
