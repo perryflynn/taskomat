@@ -499,7 +499,7 @@ def main():
 
         # result
         if len(messages) > 0:
-            print(f"Touched issue #{iisue['iid']}: {', '.join(messages)}")
+            print(f"Touched issue #{issue['iid']}: {', '.join(messages)}")
 
     print(f"{ctr} issues processed")
 
