@@ -26,7 +26,6 @@ class Housekeep:
         """ Initialize class """
         self.api = api.GitLabApi(gitlab_url, gitlab_token)
         self.project = gitlab_project
-        self.milestones = None
         self.updated_after = updated_after
         self.updated_before = updated_before
 
@@ -53,98 +52,15 @@ class Housekeep:
         for issue in issues:
             yield issue
 
-    # def ensure_assignee(self, issue, assignee_ids=[]):
-    #     """ Assign someone when no one is assigned """
-    #     do_assign = (
-    #         'assignees' in issue.keys() and isinstance(issue['assignees'], list) and len(issue['assignees']) < 1
-    #         and isinstance(assignee_ids, list) and len(assignee_ids) > 0
-    #     )
-
-    #     if do_assign:
-    #         params = { 'assignee_ids': assignee_ids }
-    #         updated = self.api.update_issue(self.project, issue['iid'], params)
-    #         issue['assignees'] = updated['assignees']
-    #         return True
-
-    #    return False
-
-    # def get_milestones(self):
-    #     """ Get milestones """
-    #     cfg_rgx = re.compile(r"^```yml[\t ]*\r?$\n^# TaskOMat config[\t ]*\r?$\n^(.*?)```[ \t]*\r?$", re.M | re.S | re.I)
-    #     for milestone in self.api.get_project_milestones(self.project, state='active'):
-    #         match = cfg_rgx.search(str(milestone['description']))
-    #         if match:
-    #             # parse config and return
-    #             try:
-    #                 milestone['taskomat'] = yaml.load(match.group(1), Loader=yaml.FullLoader)
-    #                 if 'label' in milestone['taskomat'].keys() and 'year' in milestone['taskomat'].keys():
-    #                     yield milestone
-    #             except:
-    #                 pass
-
-    # def create_labelmilestone_config(self, label, year):
-    #     """ Generate TaskOMat config text """
-    #     cfgyml = yaml.dump({ 'label': label, 'year': year }, default_flow_style=False)
-    #     return ":tea: This milestone is maintained by TaskOMat Housekeep:\n\n```yml\n# TaskOMat config\n" + cfgyml + "\n```\n"
-
-    # def ensure_milestone(self, issue, labels):
-    #     """ Assign issue to a collection milestone """
-    #     year = max([
-    #         int((issue['updated_at'] if issue['updated_at'] else '0000')[0:4]),
-    #         int((issue['due_date'] if issue['due_date'] else '0000')[0:4])
-    #     ])
-
-    #     if self.milestones is None:
-    #         self.milestones = list(self.get_milestones())
-
-    #     # assign a milestone
-    #     if not issue['milestone']:
-    #         issue_labels = list(filter(lambda x: x in labels, issue['labels']))
-    #         if len(issue_labels) > 0:
-
-    #             label_ms = list(filter(lambda x: x['taskomat']['label'] == issue_labels[0] and x['taskomat']['year'] == year, self.milestones))
-    #             milestone_id = label_ms[0]['id'] if len(label_ms) > 0 else -1
-
-    #             # create milestone if missing
-    #             if milestone_id <= 0:
-    #                 ms_due_start = str(year) + '-01-01'
-    #                 ms_due_end = str(year) + '-12-31'
-    #                 ms_name = issue_labels[0] + ' ' + str(year)
-    #                 ms_description = self.create_labelmilestone_config(issue_labels[0], year)
-
-    #                 new_milestone = self.api.post_project_milestone(self.project, ms_name, ms_description, ms_due_end, ms_due_start)
-    #                 milestone_id = new_milestone['id']
-
-    #                 self.milestones = list(self.get_milestones())
-
-    #             # update issue
-    #             params = { 'milestone_id': milestone_id }
-    #             updated = self.api.update_issue(self.project, issue['iid'], params)
-    #             issue['milestone'] = updated['milestone']
-    #             return True
-
-    #     # unassign if the issue has not the required tag
-    #     else:
-    #         label_ms = list(filter(lambda x: x['id'] == issue['milestone']['id'], self.milestones))
-    #         if len(label_ms) > 0 and label_ms[0]['taskomat']['label'] not in issue['labels']:
-
-    #             # update issue
-    #             params = { 'milestone_id': 0 }
-    #             updated = self.api.update_issue(self.project, issue['iid'], params)
-    #             issue['milestone'] = updated['milestone']
-    #             return True
-
-    #     return False
-
     def ensure_obsolete(self, issue):
         """ Ensure obsolete issues are closed """
         if issue['state'] == 'opened' and LABEL_OBSOLETE in issue['labels']:
             params = { 'state_event': 'close' }
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['state'] = updated['state']
-            return True
+            return (True, [ f"state={issue['state']}" ])
 
-        return False
+        return (False, [])
 
     def ensure_locked(self, issue):
         """ Lock closed issue """
@@ -152,9 +68,9 @@ class Housekeep:
             params = { 'discussion_locked': 'true' }
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['discussion_locked'] = updated['discussion_locked']
-            return True
+            return (True, [ f"discussion_locked={issue['discussion_locked']}" ])
 
-        return False
+        return (False, [])
 
     def ensure_confidential(self, issue):
         """ Set issue to confidential """
@@ -169,9 +85,9 @@ class Housekeep:
             params = { 'confidential': 'true' if should_confidential else 'false' }
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['confidential'] = updated['confidential']
-            return True
+            return (True, [ f"confidential={issue['confidential']}" ])
 
-        return False
+        return (False, [])
 
     def _parse_labelgroup(self, groupstr):
         """ Parse a single label group string """
@@ -184,22 +100,19 @@ class Housekeep:
         temp = temp.strip('*')
         return (temp, isdefault)
 
-    def ensure_labels(self, issue, groups, categories):
+    def ensure_labels(self, issue, groups, categories, closedlabels):
         """ Set/Unset labels depending on issue state """
 
         labels_remove = []
         labels_add = []
 
-        # remove wip label when ticket closed
+        # remove labels when ticket closed
         is_closed = issue['state'] == 'closed'
-        is_wip = LABEL_WIP in issue['labels']
-        is_onhold = LABEL_HOLD in issue['labels']
 
-        if is_closed and is_wip:
-            labels_remove.append(LABEL_WIP)
-
-        if is_closed and is_onhold:
-            labels_remove.append(LABEL_HOLD)
+        if is_closed and len(closedlabels) > 0:
+            for closedlabel in closedlabels:
+                if closedlabel in issue['labels']:
+                    labels_remove.append(closedlabel)
 
         # get label events
         labelevents = []
@@ -263,14 +176,17 @@ class Housekeep:
         if len(labels_add) > 0 or len(labels_remove) > 0:
             params = { 
                 'add_labels': ','.join(labels_add), 
-                'remove_labels': ','.join(labels_remove) 
+                'remove_labels': ','.join(labels_remove)
             }
             
+            if len(list(set(labels_remove) & set(labels_add))) > 0:
+                raise Exception('One or more labels are on the add and remove list at the same time', params)
+
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['labels'] = updated['labels']
-            return True
+            return (True, [ f"label_add={','.join(labels_add)}", f"label_remove={','.join(labels_remove)}" ])
 
-        return False
+        return (False, [])
 
     def notify_past_due(self, issue):
         """ Send mention when the issue is past due """
@@ -293,6 +209,7 @@ class Housekeep:
             if is_due:
 
                 # create only a note if the last one is older than 24h
+                createnew = True
                 for notinote in notinotes:
                     update_date = dateutil.parser.isoparse(notinote['updated_at'])
                     if (now-update_date).total_seconds() >= 24 * 60 * 60:
@@ -300,12 +217,15 @@ class Housekeep:
                     else:
                         # at least one past due mention is not
                         # older than 24h, so create no new one
-                        return True
+                        createnew = False
 
                 # create a new past due notice
-                mention = '@' + (', @'.join(map(lambda x: x['username'], issue['assignees'])))
-                txt = prefix + ' :alarm_clock: ' + mention + ' The issue is past due. :cold_sweat:'
-                self.api.post_note(self.project, issue['iid'], txt)
+                if createnew:
+                    mention = '@' + (', @'.join(map(lambda x: x['username'], issue['assignees'])))
+                    txt = prefix + ' :alarm_clock: ' + mention + ' The issue is past due. :cold_sweat:'
+                    self.api.post_note(self.project, issue['iid'], txt)
+                    
+                    return (True, [ 'past_due_note=created_new' ])
 
             # issue is not past due
             else:
@@ -313,10 +233,12 @@ class Housekeep:
                 # delete existing notes
                 for notinote in notinotes:
                     self.api.delete_note(self.project, issue['iid'], notinote['id'])
+                
+                return (True, [ 'past_due_note=deleted' ])
 
-        return False
+        return (False, [])
 
-    def counter_monthgroup(self, x):
+    def _counter_monthgroup(self, x):
         """ Helper function used when creating monthly summary for counters """
 
         items = list(x[1])
@@ -400,7 +322,7 @@ class Housekeep:
                 # monthly summary
                 groupkeyfunc = lambda x: x['date'][0:7]
                 monthlyitemsiter = itertools.groupby(sorted(newstate_data['items'], key=groupkeyfunc), groupkeyfunc)
-                monthlyitems = list(map(self.counter_monthgroup, monthlyitemsiter))
+                monthlyitems = list(map(self._counter_monthgroup, monthlyitemsiter))
                 largestmonth = max(monthlyitems, key=lambda x: x['amount'])['date']
                 mostmonth = max(monthlyitems, key=lambda x: x['count'])['date']
 
@@ -457,33 +379,47 @@ class Housekeep:
             # update existing state note
             if state_id is not None and state_data['last_updated'] < newstate_data['last_updated'] and len(newstate_data['items']) > 0:
                 self.api.update_note(self.project, issue['iid'], state_id, statebody)
-                return True
+                return (True, [ 'counter=updated' ])
 
             # create a new state note
             elif state_id is None and len(newstate_data['items']) > 0:
                 self.api.post_note(self.project, issue['iid'], statebody)
-                return True
+                return (True, [ 'counter=created' ])
 
             # delete state config as the new state has no items
             elif state_id is not None and len(newstate_data['items']) <= 0:
                 self.api.delete_note(self.project, issue['iid'], state_id)
-                return False
+                return (False, [])
 
 
 def parse_args():
     """ Parse command line arguments """
     parser = argparse.ArgumentParser(description='TaskOMat Housekeeper for GitLab')
 
+    # gitlab info
     parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, required=True, help='GitLab private access token')
     parser.add_argument('--project', metavar='johndoe/todos', type=str, required=True, help='GitLab project')
     parser.add_argument('--assignee', metavar=42, type=int, default=0, help='Assign issue to this user id if unassigned')
-    parser.add_argument('--milestone-label', metavar='somelabel', action='append', help='Summarize issues with this label in a milestone')
-    parser.add_argument('--label-group', metavar='somelabel', action='append', help='Group label and assign default label to issues')
-    parser.add_argument('--label-category', metavar='somelabel,someotherlabel', action='append', help='Add the last label in the list if one of the others are assigned to the issue')
+
+    # filter issues
     parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
     parser.add_argument('--max-updated-age', metavar='7776000', type=int, default=7776000, help='Process only issues which was updated in the last X seconds')
     parser.add_argument('--issue-iid', metavar='42', type=int, default=0, help='Filter for one specific issue iid')
     parser.add_argument('--issue-iids', metavar='40,41,42', type=str, default='', help='Filter for a comma separated list of issue iid')
+
+    # label features
+    parser.add_argument('--label-group', metavar='somelabel', action='append', help='Group label and assign default label to issues')
+    parser.add_argument('--label-category', metavar='somelabel,someotherlabel', action='append', help='Add the last label in the list if one of the others are assigned to the issue')
+    parser.add_argument('--closed-remove-labels', metavar='somelabel', action='append', help='Remove labels when issue is closed')
+
+    # issue features
+    parser.add_argument('--close-obsolete', action='store_true', help='Close issues labled as obsolete', default=False)
+    parser.add_argument('--lock-closed', action='store_true', help='Lock notes on closed issues', default=False)
+    parser.add_argument('--set-confidential', action='store_true', help='Set all issues to confidential is no public label present', default=False)
+    parser.add_argument('--notify-due', action='store_true', help='Post a note when issue is due', default=False)
+
+    # note features
+    parser.add_argument('--counters', action='store_true', help='Process counters', default=False)
 
     return parser.parse_args()
 
@@ -527,46 +463,43 @@ def main():
     if len(issue_iids) > 0:
         print(f"Issue IIDs: {', '.join(map(str, issue_iids))}")
 
-    hasprocessed = False
+    ctr = 0
     for issue in keep.get_issues(issue_iids if len(issue_iids) > 0 else None):
-        hasprocessed = True
-
-        # enforce assignee if none set
-        #if args.assignee > 0 and keep.ensure_assignee(issue, [ args.assignee ]):
-        #    print("Set assignee for " + issue['web_url'])
-
-        # assign milestone by label
-        #if keep.ensure_milestone(issue, args.milestone_label):
-        #    print("Set milestone for " + issue['web_url'])
+        ctr += 1
+        messages = []
 
         # enforce closed state for obsolete issues
-        if keep.ensure_obsolete(issue):
-            print("Set obsolete issue closed for " + issue['web_url'])
+        if args.close_obsolete:
+            messages += keep.ensure_obsolete(issue)
 
         # enforce locked discussion for closed issues
-        if keep.ensure_locked(issue):
-            print("Set locked for " + issue['web_url'])
+        if args.lock_closed:
+            messages += keep.ensure_locked(issue)
 
         # enforce confidential for closed issues
-        if keep.ensure_confidential(issue):
-            print("Set confidential for " + issue['web_url'])
+        if args.set_confidential:
+            messages += keep.ensure_confidential(issue)
 
         # enforce certain label rules based on the state of the issue
         labelgroups = args.label_group if args.label_group and len(args.label_group) > 0 else []
         labelcategories = args.label_category if args.label_category and len(args.label_category) > 0 else []
+        closedlabels = args.closed_remove_labels if args.closed_remove_labels and len(args.closed_remove_labels) > 0 else []
         
-        if keep.ensure_labels(issue, labelgroups, labelcategories):
-            print("Touched label list for " + issue['web_url'])
+        messages += keep.ensure_labels(issue, labelgroups, labelcategories, closedlabels)
 
         # past due notification
-        if keep.notify_past_due(issue):
-            print("Send past due notice for " + issue['web_url'])
+        if args.notify_due:
+            messages += keep.notify_past_due(issue)
 
-        if keep.process_counters(issue):
-            print("Process counters for " + issue['web_url'])
+        # process counter
+        if args.counters:
+            messages += keep.process_counters(issue)
 
-    if not hasprocessed:
-        print('No issues found.')
+        # result
+        if len(messages) > 0:
+            print(f"Touched issue #{iisue['iid']}: {', '.join(messages)}")
+
+    print(f"{ctr} issues processed")
 
 if __name__ == "__main__":
     try:
