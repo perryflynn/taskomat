@@ -203,7 +203,7 @@ class Housekeep:
 
             # find existing past due notes
             notes = list(self.api.get_issue_notes(self.project, issue['iid']))
-            notinotes = filter(lambda x: x['body'].startswith(prefix), notes)
+            notinotes = list(filter(lambda x: x['body'].startswith(prefix), notes))
 
             # issue is past due
             if is_due:
