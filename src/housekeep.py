@@ -413,7 +413,7 @@ def parse_args():
     # label features
     parser.add_argument('--label-group', metavar='somelabel', action='append', help='Group label and assign default label to issues')
     parser.add_argument('--label-category', metavar='somelabel,someotherlabel', action='append', help='Add the last label in the list if one of the others are assigned to the issue')
-    parser.add_argument('--closed-remove-labels', metavar='somelabel', action='append', help='Remove labels when issue is closed')
+    parser.add_argument('--closed-remove-label', metavar='somelabel', action='append', help='Remove labels when issue is closed')
 
     # issue features
     parser.add_argument('--close-obsolete', action='store_true', help='Close issues labled as obsolete', default=False)
