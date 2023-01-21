@@ -488,7 +488,7 @@ def main():
         # enforce certain label rules based on the state of the issue
         labelgroups = args.label_group if args.label_group and len(args.label_group) > 0 else []
         labelcategories = args.label_category if args.label_category and len(args.label_category) > 0 else []
-        closedlabels = args.closed_remove_labels if args.closed_remove_labels and len(args.closed_remove_labels) > 0 else []
+        closedlabels = args.closed_remove_label if args.closed_remove_label and len(args.closed_remove_label) > 0 else []
         
         messages += keep.ensure_labels(issue, labelgroups, labelcategories, closedlabels)[1]
 
