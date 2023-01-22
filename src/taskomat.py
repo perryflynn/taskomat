@@ -127,6 +127,8 @@ class TaskOMat:
             issue['taskomat']['config']['botcounter'] += 1
             self.post_or_update_config(issue, issue['taskomat']['config'])
 
+            return (True, [ 'result=updated_issue' ])
+
         else:
             # create a new issue
             if (self.label not in task['labels']):
@@ -163,6 +165,8 @@ class TaskOMat:
                 related_txt = ":clock2: :book: Related issues:\n\n" + related_list_txt
                 self.api.post_note(self.project, issue['iid'], related_txt)
 
+            return (True, [ 'result=created_issue' ])
+
 
 def parse_args():
     """ Parse command line arguments """
@@ -197,9 +201,12 @@ def main():
         updated_after=updated_after
     )
 
+    print(f"Collection dir: {args.collection_dir}")
+
     # create issues
     for task in omat.get_collection_items():
-        omat.create_issue(task)
+        result = omat.create_issue(task)
+        print(f"Task item '{task['key']}': {', '.join(result[1])}")
 
 
 if __name__ == "__main__":
