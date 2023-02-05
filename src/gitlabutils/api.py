@@ -49,7 +49,7 @@ class GitLabApi:
 
         return requests.post(issue_url, headers=issue_headers, params=issue_params).json()
 
-    def get_project_issues(self, project, state='opened', labels='', updated_before=None, updated_after=None, iids=None):
+    def get_project_issues(self, project, state='opened', labels='', updated_before=None, updated_after=None, iids=None, order_by='created_at', sort='desc', limit=None):
         """ Get all issues """
         self.issues = []
         item_buffer = []
@@ -72,24 +72,35 @@ class GitLabApi:
             'state': state,
             'labels': labels,
             'updated_before': updated_before_str,
-            'updated_after': updated_after_str
+            'updated_after': updated_after_str,
+            'order_by': order_by,
+            'sort': sort,
+            'scope': 'all'
         }
 
         if iids and len(iids) > 0:
             params['iids[]'] = list(map(str, iids))
 
+        ctr = 0
         while True:
             # fetch a page of issues
             params['page'] = page_count
+            params['per_page'] = item_count
+
+            if limit and limit > 0 and (limit - ctr) > 0 and (limit - ctr) < item_count:
+                params['per_page'] = (limit - ctr)
+            
+            # fetch issues
             r = requests.get(url, params=params, headers=headers)
             item_buffer = r.json()
 
             for item in item_buffer:
+                ctr += 1
                 yield item
 
             # next page until non-full buffer
             page_count += 1
-            if len(item_buffer) < item_count:
+            if ctr >= limit or len(item_buffer) < item_count:
                 break
 
         return
@@ -177,6 +188,18 @@ class GitLabApi:
         issue_headers = { 'PRIVATE-TOKEN': self.token }
 
         return requests.put(issue_url, headers=issue_headers, params=issue_params).json()
+
+    def reorder_issue(self, project, issue_iid, move_before_global_id=None, move_after_global_id=None):
+        """ Reorder issues """
+        issue_url = self.url + '/api/v4/projects/' + urllib.parse.quote(project, safe='') + '/issues/' + str(issue_iid) + '/reorder'
+        issue_headers = { 'PRIVATE-TOKEN': self.token }
+
+        reorder_params = {
+            'move_after_id': move_after_global_id,
+            'move_before_id': move_before_global_id
+        }
+
+        return requests.put(issue_url, headers=issue_headers, params=reorder_params).json()
 
     def post_note(self, project, issue_iid, body):
         """ Post a new note """

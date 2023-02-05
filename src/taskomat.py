@@ -8,6 +8,7 @@ import re
 import datetime
 import dateutil.parser
 import dateutil.relativedelta
+from pprint import pprint
 
 from gitlabutils import api
 
@@ -145,6 +146,8 @@ class TaskOMat:
 
             # create config as note
             self.post_or_update_config(issue, { 'key': task['key'], 'botcounter': 1 })
+
+            pprint(self.get_project_issues(project=self.project, limit=2))
 
             # related items
             related_list = []
