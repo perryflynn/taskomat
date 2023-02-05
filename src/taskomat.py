@@ -147,6 +147,7 @@ class TaskOMat:
             # create config as note
             self.post_or_update_config(issue, { 'key': task['key'], 'botcounter': 1 })
 
+            # move issue to top
             topissue = list(self.api.get_project_issues(project=self.project, order_by='relative_position', sort='asc', limit=1))
             if len(topissue) > 0:
                 self.api.reorder_issue(self.project, issue['iid'], move_before_global_id=topissue[0]['id'])
