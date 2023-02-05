@@ -149,7 +149,7 @@ class TaskOMat:
 
             topissue = list(self.api.get_project_issues(project=self.project, order_by='relative_position', sort='asc', limit=1))
             if len(topissue) > 0:
-                pprint(self.api.reorder_issue(project=self.project, issue['iid'], move_before_global_id=issue['id']))
+                pprint(self.api.reorder_issue(self.project, issue['iid'], move_before_global_id=issue['id']))
 
             # related items
             related_list = []
