@@ -35,8 +35,8 @@ class Housekeep:
 
         if issue_iids and len(issue_iids) > 0:
             issues = self.api.get_project_issues(
-                self.project, 
-                state='all', 
+                self.project,
+                state='all',
                 iids=issue_iids
             )
 
@@ -85,13 +85,13 @@ class Housekeep:
 
     def ensure_confidential(self, issue):
         """ Set issue to confidential """
-        
+
         is_closed = issue['state'] == 'closed'
         is_public = LABEL_PUBLIC in issue['labels']
         is_confidential = (issue['confidential'] is not None and issue['confidential'] == True)
 
         should_confidential = is_closed or not is_public
-        
+
         if is_confidential != should_confidential:
             params = { 'confidential': 'true' if should_confidential else 'false' }
             updated = self.api.update_issue(self.project, issue['iid'], params)
@@ -103,101 +103,117 @@ class Housekeep:
     def _parse_labelgroup(self, groupstr):
         """ Parse a single label group string """
         temp = groupstr.strip()
-        
+
         isdefault = False
         if temp.endswith('*'):
             isdefault = True
-        
+
         temp = temp.strip('*')
         return (temp, isdefault)
 
     def ensure_labels(self, issue, groups, categories, closedlabels):
         """ Set/Unset labels depending on issue state """
 
-        labels_remove = []
-        labels_add = []
+        overall_remove = []
+        overall_add = []
 
-        # remove labels when ticket closed
-        is_closed = issue['state'] == 'closed'
+        while True:
+            labels_remove = []
+            labels_add = []
 
-        if is_closed and len(closedlabels) > 0:
-            for closedlabel in closedlabels:
-                if closedlabel in issue['labels']:
-                    labels_remove.append(closedlabel)
+            # remove labels when ticket closed
+            is_closed = issue['state'] == 'closed'
 
-        # get label events
-        labelevents = []
-        if len(groups) > 0:
-            labelevents = list(sorted(filter(lambda x: x['action'] == 'add', self.api.get_issue_label_events(self.project, issue['iid'])), key=lambda x: x['created_at'], reverse=True))
+            if is_closed and len(closedlabels) > 0:
+                for closedlabel in closedlabels:
+                    if closedlabel in issue['labels']:
+                        labels_remove.append(closedlabel)
 
-        # group label rules
-        for groupstr in groups:
-            grouplabels = list(map(self._parse_labelgroup, groupstr.split(',')))
-            defaultlabels = list(filter(lambda x: x[1], grouplabels))
-            defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
-            grouplabels = list(map(lambda x: x[0], grouplabels))
+            # get label events
+            labelevents = []
+            if len(groups) > 0:
+                labelevents = list(sorted(filter(lambda x: x['action'] == 'add', self.api.get_issue_label_events(self.project, issue['iid'])), key=lambda x: x['created_at'], reverse=True))
 
-            # find used tags from the current group
-            inuse = []
-            for issuelabel in issue['labels']:
-                if issuelabel in grouplabels:
-                    inuse.append(issuelabel)
-            
-            # remove label if more than one from the current group
-            if len(inuse) > 1:
-                usedlabelevents = list(filter(lambda x: x['label']['name'] in inuse, labelevents))
-                if len(usedlabelevents) > 0:
-                    # remove label by event stream
-                    labels_remove += list(filter(lambda x: x != usedlabelevents[0]['label']['name'], inuse))
-                else:
-                    # remove by list slice since event stream is empty
-                    for toremove in inuse[:-1]:
-                        labels_remove.append(toremove)
-            
-            elif len(inuse) <= 0 and defaultlabel is not None:
-                labels_add.append(defaultlabel)
+            # group label rules
+            for groupstr in groups:
+                grouplabels = list(map(self._parse_labelgroup, groupstr.split(',')))
+                defaultlabels = list(filter(lambda x: x[1], grouplabels))
+                defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
+                grouplabels = list(map(lambda x: x[0], grouplabels))
 
-        # label category rules
-        for categorystr in categories:
-            categorylabels = list(map(lambda x: x[0], map(self._parse_labelgroup, categorystr.split(','))))
+                # find used tags from the current group
+                inuse = []
+                for issuelabel in issue['labels']:
+                    if issuelabel in grouplabels:
+                        inuse.append(issuelabel)
 
-            if len(categorylabels) < 2:
-                print(f"Invalid category label str: {categorystr}")
-                continue
+                # remove label if more than one from the current group
+                if len(inuse) > 1:
+                    usedlabelevents = list(filter(lambda x: x['label']['name'] in inuse, labelevents))
+                    if len(usedlabelevents) > 0:
+                        # remove label by event stream
+                        labels_remove += list(filter(lambda x: x != usedlabelevents[0]['label']['name'], inuse))
+                    else:
+                        # remove by list slice since event stream is empty
+                        for toremove in inuse[:-1]:
+                            labels_remove.append(toremove)
 
-            expectedlabels = categorylabels[:-1]
-            categorylabel = categorylabels[-1]
+                elif len(inuse) <= 0 and defaultlabel is not None:
+                    labels_add.append(defaultlabel)
 
-            # find used tags from the current group
-            hascategory = categorylabel in issue['labels']
-            hasexpected = False
-            for issuelabel in issue['labels']:
-                if issuelabel in expectedlabels:
-                    hasexpected = True
-            
-            # add category if any label is assigned
-            if hasexpected and not hascategory:
-                labels_add.append(categorylabel)
-            
-            # remove category if no label is assigned
-            elif not hasexpected and hascategory:
-                labels_remove.append(categorylabel)
+            # label category rules
+            for categorystr in categories:
+                categorylabels = list(map(lambda x: x[0], map(self._parse_labelgroup, categorystr.split(','))))
 
-        # apply changes
-        if len(labels_add) > 0 or len(labels_remove) > 0:
-            params = { 
-                'add_labels': ','.join(labels_add), 
-                'remove_labels': ','.join(labels_remove)
-            }
-            
-            if len(list(set(labels_remove) & set(labels_add))) > 0:
-                raise Exception('One or more labels are on the add and remove list at the same time', params)
+                if len(categorylabels) < 2:
+                    print(f"Invalid category label str: {categorystr}")
+                    continue
 
-            updated = self.api.update_issue(self.project, issue['iid'], params)
-            issue['labels'] = updated['labels']
-            return (True, [ f"label_add={','.join(labels_add)}", f"label_remove={','.join(labels_remove)}" ])
+                expectedlabels = categorylabels[:-1]
+                categorylabel = categorylabels[-1]
 
-        return (False, [])
+                # find used tags from the current group
+                hascategory = categorylabel in issue['labels']
+                hasexpected = False
+                for issuelabel in issue['labels']:
+                    if issuelabel in expectedlabels:
+                        hasexpected = True
+
+                # add category if any label is assigned
+                if hasexpected and not hascategory:
+                    labels_add.append(categorylabel)
+
+                # remove category if no label is assigned
+                elif not hasexpected and hascategory:
+                    labels_remove.append(categorylabel)
+
+            # filter already touched
+            for t in list(set(overall_add + overall_remove)):
+                labels_add = list(filter(lambda x: x != t, labels_add))
+                labels_remove = list(filter(lambda x: x != t, labels_remove))
+
+            # apply changes
+            if len(labels_add) > 0 or len(labels_remove) > 0:
+                params = {
+                    'add_labels': ','.join(labels_add),
+                    'remove_labels': ','.join(labels_remove)
+                }
+
+                if len(list(set(labels_remove) & set(labels_add))) > 0:
+                    raise Exception('One or more labels are on the add and remove list at the same time', params)
+
+                updated = self.api.update_issue(self.project, issue['iid'], params)
+                issue['labels'] = updated['labels']
+                overall_add += labels_add
+                overall_remove += labels_remove
+            else:
+                break
+
+        # report result
+        if len(overall_add) > 0 or len(overall_remove) > 0:
+            return (True, [ f"label_add={','.join(overall_add)}", f"label_remove={','.join(overall_remove)}" ])
+        else:
+            return (False, [])
 
     def notify_past_due(self, issue):
         """ Send mention when the issue is past due """
@@ -235,7 +251,7 @@ class Housekeep:
                     mention = '@' + (', @'.join(map(lambda x: x['username'], issue['assignees'])))
                     txt = prefix + ' :alarm_clock: ' + mention + ' The issue is past due. :cold_sweat:'
                     self.api.post_note(self.project, issue['iid'], txt)
-                    
+
                     return (True, [ 'past_due_note=created_new' ])
 
             # issue is not past due
@@ -245,7 +261,7 @@ class Housekeep:
                 if len(notinotes) > 0:
                     for notinote in notinotes:
                         self.api.delete_note(self.project, issue['iid'], notinote['id'])
-                    
+
                     return (True, [ 'past_due_note=deleted' ])
 
         return (False, [])
@@ -480,7 +496,7 @@ def main():
 
     ctr_issues = 0
     ctr_processed = 0
-    
+
     for issue in keep.get_issues(issue_iids if len(issue_iids) > 0 else None):
         ctr_issues += 1
         messages = []
@@ -505,7 +521,7 @@ def main():
         labelgroups = args.label_group if args.label_group and len(args.label_group) > 0 else []
         labelcategories = args.label_category if args.label_category and len(args.label_category) > 0 else []
         closedlabels = args.closed_remove_label if args.closed_remove_label and len(args.closed_remove_label) > 0 else []
-        
+
         messages += keep.ensure_labels(issue, labelgroups, labelcategories, closedlabels)[1]
 
         # past due notification
