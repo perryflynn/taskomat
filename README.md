@@ -2,10 +2,19 @@
 
 This is a script collection to manage GitLab issues.
 
+## Changelog 2023-02-05
+
+- Label groups
+- Label categories
+- Close issue tagged as `Obsolete`
+- Assign closing user to a unassigned issue which was closed
+- All feature can be enabled/disabled via command line arguments
+- TaskOMat generated issues are moved to top on issue boards
+
 ## Changelog 2022-12-23
 
 - All issues will be set to confidential if they don't have a `Public` label assigned
-- The label `Work in Progress` will be removed from closed issues
+- Labels like `Work in Progress` will be removed from closed issues
 - Support for starting housekeep.py via Web Hook for a single issue
 
 ## Housekeeping
@@ -25,8 +34,6 @@ This cron ensures certain rules on all issues.
     --assignee $assignee \
     --delay 900 \
     --max-updated-age 2592000 \
-    --milestone-label Bürokratie \
-    --milestone-label Wohnung \
     --label-group "low,medium*,high" \
     --label-category "Green,Red,Yellow,Color" \
     --closed-remove-label "Workflow:Work in Progress" \
