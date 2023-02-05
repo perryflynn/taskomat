@@ -147,7 +147,7 @@ class TaskOMat:
             # create config as note
             self.post_or_update_config(issue, { 'key': task['key'], 'botcounter': 1 })
 
-            pprint(list(self.api.get_project_issues(project=self.project, order_by='relative_position', limit=2)))
+            pprint(list(self.api.get_project_issues(project=self.project, order_by='relative_position', sort='asc', limit=2)))
 
             # related items
             related_list = []
