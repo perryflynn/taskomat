@@ -29,7 +29,7 @@ This cron ensures certain rules on all issues.
 # which must contain a valid access token of the
 # bot user in the CI Pipeline Variables
 
-./housekeep.py --gitlab-url "$CI_SERVER_URL" \
+TASKOMAT_TOKEN="gitlab token" ./housekeep.py --gitlab-url "$CI_SERVER_URL" \
     --project "$CI_PROJECT_PATH" \
     --assignee $assignee \
     --delay 900 \
@@ -205,7 +205,7 @@ just a mention to the assignee.
 # which must contain a valid access token of the
 # bot user in the CI Pipeline Variables
 
-./taskomat.py --gitlab-url "$CI_SERVER_URL" \
+TASKOMAT_TOKEN="gitlab token" ./taskomat.py --gitlab-url "$CI_SERVER_URL" \
     --project "$CI_PROJECT_PATH" \
     --collection-dir ./$CRON_COLLECTION \
     --max-updated-age 7776000
