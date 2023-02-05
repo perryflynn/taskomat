@@ -100,7 +100,7 @@ class GitLabApi:
 
             # next page until non-full buffer
             page_count += 1
-            if ctr >= limit or len(item_buffer) < item_count:
+            if (limit and limit > 0 and ctr >= limit) or len(item_buffer) < item_count:
                 break
 
         return
