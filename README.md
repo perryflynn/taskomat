@@ -28,6 +28,15 @@ This cron ensures certain rules on all issues.
     --milestone-label Bürokratie \
     --milestone-label Wohnung \
     --label-group "low,medium*,high" \
+    --label-category "Green,Red,Yellow,Color" \
+    --closed-remove-label "Workflow:Work in Progress" \
+    --closed-remove-label "Workflow:On Hold" \
+    --close-obsolete \
+    --lock-closed \
+    --assign-closed \
+    --set-confidential \
+    --notify-due \
+    --counters \
     [--issue-iid 42]
 ```
 
@@ -36,7 +45,6 @@ graph TD
     hk[Housekeep Cron] --> issues[Get all Issues where<br>updated timestamp is<br>older than 15 minutes<br>or a single issue]
     wekhook[Webhook] --> issues
     issues --> assign[Assign all unassigned<br>issues to a specific user]
-    issues --> milestone[Summarize issues tagged<br>with specific tags in<br>milestones to show a time<br>tracking summary for this tag]
     issues --> ispublic{Has issue<br>Public label?}
     ispublic -->|Yes| confidential[Set issue<br>to confidential]
     ispublic -->|No| noconfidential[Set issue<br>to not confidential]
@@ -44,6 +52,8 @@ graph TD
     isdue -->|Yes| delduemsg2[Delete existing<br>due mentions]
     issues --> isclosed{Is issue<br>closed?}
     isclosed -->|Yes| delwip[Delete<br>Work in Progress<br>label]
+    isclosed -->|Yes| delunass{Issue<br>unassigned?}
+    delunass -->|Yes| assclosee[Assign User<br>which closed<br>the issue]
     delwip --> delonhold[Delete<br>On Hold<br>label]
     delonhold --> lock[Lock discussions]
     delduemsg2 --> addue[Create past due<br>mention to assignee]
@@ -52,6 +62,11 @@ graph TD
     issues --> isobsolete{Has issue<br>Obsolete label?}
     isobsolete -->|Yes| close[Close issue]
     iscounter -->|Yes| countit[Process Counter<br>Bot commands]
+    issues --> childlabel{child<br>label<br>added?}
+    childlabel --> addcat[Add category<br>label]
+    issues --> groupdefault[Ensure default<br>label of a label group<br>if no group label<br>exists]
+    groupdefault --> groupadded{group label<br>added and<br>other label<br>of the group<br>existent?}
+    groupadded -->|Yes| removegrouplabel[Remove all labels<br>of a group except<br>the last added one]
 ```
 
 ### Label Groups
@@ -61,6 +76,12 @@ mentioned in the list is present in the issue. If one label is marked with a `*`
 it will be added automatically of none of the labels are present.
 
 This works similar to the [Scoped Labels of GitLab Premium](https://docs.gitlab.com/ee/user/project/labels.html#scoped-labels).
+
+### Label Categories
+
+The `--label-category "Green,Red,Yellow,Color"` feature ensures that, if `Green`,
+`Red` or `Yellow` exists, the `Color` label is added. The `Color` label is removed
+if none of the child labels are present.
 
 ### Counter
 
@@ -78,12 +99,12 @@ will result in
 
 `TaskOMat:countersummary` :tea: Here is the TaskOMat counter summary:
 
-**Processed:** 65 items  
-**Time range:** 2022-05-28 - 2022-12-21  
-**Smallest Amount:** 2.0 km  
+**Processed:** 65 items
+**Time range:** 2022-05-28 - 2022-12-21
+**Smallest Amount:** 2.0 km
 **Largest Amount:** 102.0 km
 
-**Goal:**  
+**Goal:**
 ![grand progress](https://progress-bar.dev/123/?scale=100&width=260&color=0072ef&suffix=%25%20%281231km%20of%201000km%29)
 
 | Month | Items | Amount |
@@ -103,7 +124,7 @@ will result in
 
 Executing the housekeeping script by a web hook allows a almost-instant
 apply of the TaskOMat rules. It will start a new pipeline for each single
-modified issue. 
+modified issue.
 
 The pipeline YAML will extract the issue iid from the
 trigger payload and will start housekeep with `--issue-iid $ISSUE_ID`.
@@ -188,5 +209,6 @@ graph TD
     tm[TaskOMat Cron] --> check{Issue still exists?}
     check -->|Yes| note[Create a note<br>to mention assignee]
     check -->|No| issue[Create a new<br>issue based<br>von YAML config]
-    issue --> related[Create a list of<br>related issues]
+    issue --> top["Move issue to top<br>(for boards)"]
+    top --> related[Create a list of<br>related issues]
 ```
