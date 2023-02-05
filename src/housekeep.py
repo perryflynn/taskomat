@@ -74,7 +74,7 @@ class Housekeep:
 
     def ensure_assigned(self, issue):
         """ Assign closed issue """
-        if issue['state'] == 'closed' and issue['closed_by'] and issue['closed_by']['id'] > 0:
+        if issue['state'] == 'closed' and len(issue['assignees']) < 1 and issue['closed_by'] and issue['closed_by']['id'] > 0:
             params = { 'assignee_ids': issue['closed_by']['id'] }
             updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['assignee'] = updated['assignee']
