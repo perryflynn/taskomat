@@ -72,6 +72,17 @@ class Housekeep:
 
         return (False, [])
 
+    def ensure_assigned(self, issue):
+        """ Assign closed issue """
+        if issue['state'] == 'closed' and issue['closed_by'] and issue['closed_by']['id'] > 0:
+            params = { 'assignee_ids': issue['closed_by']['id'] }
+            updated = self.api.update_issue(self.project, issue['iid'], params)
+            issue['assignee'] = updated['assignee']
+            issue['assignees'] = updated['assignees']
+            return (True, [ f"assignee={issue['closed_by']['username']}" ])
+
+        return (False, [])
+
     def ensure_confidential(self, issue):
         """ Set issue to confidential """
         
@@ -418,6 +429,7 @@ def parse_args():
     # issue features
     parser.add_argument('--close-obsolete', action='store_true', help='Close issues labled as obsolete', default=False)
     parser.add_argument('--lock-closed', action='store_true', help='Lock notes on closed issues', default=False)
+    parser.add_argument('--assign-closed', action='store_true', help='Assign user which closed the issue if the issue is unassigned', default=False)
     parser.add_argument('--set-confidential', action='store_true', help='Set all issues to confidential is no public label present', default=False)
     parser.add_argument('--notify-due', action='store_true', help='Post a note when issue is due', default=False)
 
@@ -476,6 +488,10 @@ def main():
         # enforce closed state for obsolete issues
         if args.close_obsolete:
             messages += keep.ensure_obsolete(issue)[1]
+
+        # assign closing user to a closed issue without a user assigned
+        if args.assign_closed:
+            messages += keep.ensure_assigned(issue)[1]
 
         # enforce locked discussion for closed issues
         if args.lock_closed:
