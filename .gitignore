@@ -1,4 +1,5 @@
 private-tasks
+.env
 
 .vscode/*
 !.vscode/settings.json

@@ -22,4 +22,12 @@ RUN apt update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN chmod a+x /src/*.py && \
-    pip3 install -r /src/requirements.txt
+    pip3 install --no-cache-dir -r /src/requirements.txt
+
+ENV TASKOMAT_LABEL_OBSOLETE="Workflow:Obsolete"
+ENV TASKOMAT_LABEL_PUBLIC="Workflow:Public"
+ENV TASKOMAT_LABEL_BACKLOG="Workflow:Backlog"
+ENV TASKOMAT_LABEL_APPROVED="Workflow:Approved"
+ENV TASKOMAT_LABEL_WIP="Workflow:Work in Progress"
+ENV TASKOMAT_LABEL_HOLD="Workflow:On Hold"
+ENV TASKOMAT_LABEL_TASKOMAT_COUNTER="TaskOMat:Counter"
