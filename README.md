@@ -2,6 +2,17 @@
 
 This is a script collection to manage GitLab issues.
 
+## Changelog 2024-02-18
+
+- Label Groups optional for closed issues
+    - Apply label groups to closed issues by adding `include-closed` to the group
+- Dry run mode
+- Changed label syntax
+- Workflow Labels manged internally
+- Rename workflow labels by environment variables
+- Added `backlog` workflow label
+- Added `approved` workflow label
+
 ## Changelog 2023-02-05
 
 - Label groups
@@ -29,15 +40,17 @@ This cron ensures certain rules on all issues.
 # which must contain a valid access token of the
 # bot user in the CI Pipeline Variables
 
-TASKOMAT_TOKEN="gitlab token" ./housekeep.py --gitlab-url "$CI_SERVER_URL" \
+TASKOMAT_TOKEN="gitlab token" \
+./housekeep.py --gitlab-url "$CI_SERVER_URL" \
     --project "$CI_PROJECT_PATH" \
     --assignee $assignee \
     --delay 900 \
     --max-updated-age 2592000 \
-    --label-group "low,medium*,high" \
-    --label-category "Green,Red,Yellow,Color" \
-    --closed-remove-label "Workflow:Work in Progress" \
-    --closed-remove-label "Workflow:On Hold" \
+    --workflow-labels \
+    --label-group "~low,~medium*,~high,include-closed" \
+    --label-category "~Green,~Red,~Yellow,~Color" \
+    --closed-remove-label "~Important" \
+    --closed-remove-label "~Really Important" \
     --close-obsolete \
     --lock-closed \
     --assign-closed \
