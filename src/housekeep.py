@@ -9,25 +9,31 @@ import re
 import itertools
 import urllib.parse
 
-from gitlabutils import api
+from gitlabutils.api import GitLabApi
+from gitlabutils.utils import *
 
 
-LABEL_OBSOLETE = 'Workflow:Obsolete'
-LABEL_PUBLIC = 'Workflow:Public'
-LABEL_WIP = 'Workflow:Work in Progress'
-LABEL_HOLD = 'Workflow:On Hold'
-LABEL_TASKOMAT_COUNTER = 'TaskOMat:Counter'
+LABEL_OBSOLETE = os.environ.get('TASKOMAT_LABEL_OBSOLETE', 'Workflow:Obsolete')
+LABEL_PUBLIC = os.environ.get('TASKOMAT_LABEL_PUBLIC', 'Workflow:Public')
+LABEL_BACKLOG = os.environ.get('TASKOMAT_LABEL_BACKLOG', 'Workflow:Backlog')
+LABEL_APPROVED = os.environ.get('TASKOMAT_LABEL_APPROVED', 'Workflow:Approved')
+LABEL_WIP = os.environ.get('TASKOMAT_LABEL_WIP', 'Workflow:Work in Progress')
+LABEL_HOLD = os.environ.get('TASKOMAT_LABEL_HOLD', 'Workflow:On Hold')
+LABEL_TASKOMAT_COUNTER = os.environ.get('TASKOMAT_LABEL_TASKOMAT_COUNTER', 'TaskOMat:Counter')
+
+FLAG_INCLUDE_CLOSED = 'include-closed'
 
 
 class Housekeep:
     """ Housekeep functions """
 
-    def __init__(self, gitlab_url, gitlab_token, gitlab_project, updated_after, updated_before):
+    def __init__(self, gitlab_url, gitlab_token, gitlab_project, updated_after, updated_before, dry_run):
         """ Initialize class """
-        self.api = api.GitLabApi(gitlab_url, gitlab_token)
+        self.api = GitLabApi(gitlab_url, gitlab_token)
         self.project = gitlab_project
         self.updated_after = updated_after
         self.updated_before = updated_before
+        self.dry_run = dry_run
 
     def get_issues(self, issue_iids=None):
         """ Get issues """
@@ -56,7 +62,9 @@ class Housekeep:
         """ Ensure obsolete issues are closed """
         if issue['state'] == 'opened' and LABEL_OBSOLETE in issue['labels']:
             params = { 'state_event': 'close' }
-            updated = self.api.update_issue(self.project, issue['iid'], params)
+            updated = issue
+            if not self.dry_run:
+                updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['state'] = updated['state']
             return (True, [ f"state={issue['state']}" ])
 
@@ -66,7 +74,9 @@ class Housekeep:
         """ Lock closed issue """
         if issue['state'] == 'closed' and (issue['discussion_locked'] is None or issue['discussion_locked'] != True):
             params = { 'discussion_locked': 'true' }
-            updated = self.api.update_issue(self.project, issue['iid'], params)
+            updated = issue
+            if not self.dry_run:
+                updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['discussion_locked'] = updated['discussion_locked']
             return (True, [ f"discussion_locked={issue['discussion_locked']}" ])
 
@@ -76,7 +86,9 @@ class Housekeep:
         """ Assign closed issue """
         if issue['state'] == 'closed' and len(issue['assignees']) < 1 and issue['closed_by'] and issue['closed_by']['id'] > 0:
             params = { 'assignee_ids': issue['closed_by']['id'] }
-            updated = self.api.update_issue(self.project, issue['iid'], params)
+            updated = issue
+            if not self.dry_run:
+                updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['assignee'] = updated['assignee']
             issue['assignees'] = updated['assignees']
             return (True, [ f"assignee={issue['closed_by']['username']}" ])
@@ -94,22 +106,28 @@ class Housekeep:
 
         if is_confidential != should_confidential:
             params = { 'confidential': 'true' if should_confidential else 'false' }
-            updated = self.api.update_issue(self.project, issue['iid'], params)
+            updated = issue
+            if not self.dry_run:
+                updated = self.api.update_issue(self.project, issue['iid'], params)
             issue['confidential'] = updated['confidential']
             return (True, [ f"confidential={issue['confidential']}" ])
 
         return (False, [])
 
-    def _parse_labelgroup(self, groupstr):
+    def _parse_labelgroupitem(self, groupstr):
         """ Parse a single label group string """
-        temp = groupstr.strip()
+        temp = groupstr.strip().replace('"', '')
 
         isdefault = False
         if temp.endswith('*'):
             isdefault = True
 
-        temp = temp.strip('*')
-        return (temp, isdefault)
+        isflag = False
+        if not temp.startswith('~'):
+            isflag = True
+
+        temp = temp.strip('*').strip('~').strip()
+        return { 'label': temp, 'default': isdefault, 'flag': isflag }
 
     def ensure_labels(self, issue, groups, categories, closedlabels):
         """ Set/Unset labels depending on issue state """
@@ -125,7 +143,7 @@ class Housekeep:
             is_closed = issue['state'] == 'closed'
 
             if is_closed and len(closedlabels) > 0:
-                for closedlabel in closedlabels:
+                for closedlabel in map(lambda x: x['label'], filter(lambda x: not x['flag'], map(self._parse_labelgroupitem, closedlabels))):
                     if closedlabel in issue['labels']:
                         labels_remove.append(closedlabel)
 
@@ -136,10 +154,15 @@ class Housekeep:
 
             # group label rules
             for groupstr in groups:
-                grouplabels = list(map(self._parse_labelgroup, groupstr.split(',')))
-                defaultlabels = list(filter(lambda x: x[1], grouplabels))
-                defaultlabel = defaultlabels[0][0] if len(defaultlabels) > 0 else None
-                grouplabels = list(map(lambda x: x[0], grouplabels))
+                allgrouplabels = list(map(self._parse_labelgroupitem, groupstr.split(',')))
+                defaultlabels = list(filter(lambda x: x['default'] and not x['flag'], allgrouplabels))
+                defaultlabel = defaultlabels[0]['label'] if len(defaultlabels) > 0 else None
+                grouplabels = list(map(lambda x: x['label'], filter(lambda x: not x['flag'], allgrouplabels)))
+                groupflags = list(map(lambda x: x['label'], filter(lambda x: x['flag'], allgrouplabels)))
+
+                # skip group handling on closed issues
+                if is_closed and FLAG_INCLUDE_CLOSED not in groupflags:
+                    continue
 
                 # find used tags from the current group
                 inuse = []
@@ -163,10 +186,10 @@ class Housekeep:
 
             # label category rules
             for categorystr in categories:
-                categorylabels = list(map(lambda x: x[0], map(self._parse_labelgroup, categorystr.split(','))))
+                categorylabels = list(map(lambda x: x['label'], filter(lambda x: not x['flag'], map(self._parse_labelgroupitem, categorystr.split(',')))))
 
                 if len(categorylabels) < 2:
-                    print(f"Invalid category label str: {categorystr}")
+                    eprint(f"Invalid category label str, at least two labels required: {categorystr}")
                     continue
 
                 expectedlabels = categorylabels[:-1]
@@ -202,7 +225,10 @@ class Housekeep:
                 if len(list(set(labels_remove) & set(labels_add))) > 0:
                     raise Exception('One or more labels are on the add and remove list at the same time', params)
 
-                updated = self.api.update_issue(self.project, issue['iid'], params)
+                updated = issue
+                if not self.dry_run:
+                    updated = self.api.update_issue(self.project, issue['iid'], params)
+
                 issue['labels'] = updated['labels']
                 overall_add += labels_add
                 overall_remove += labels_remove
@@ -240,7 +266,8 @@ class Housekeep:
                 for notinote in notinotes:
                     update_date = dateutil.parser.isoparse(notinote['updated_at'])
                     if (now-update_date).total_seconds() >= 24 * 60 * 60:
-                        self.api.delete_note(self.project, issue['iid'], notinote['id'])
+                        if not self.dry_run:
+                            self.api.delete_note(self.project, issue['iid'], notinote['id'])
                     else:
                         # at least one past due mention is not
                         # older than 24h, so create no new one
@@ -250,7 +277,8 @@ class Housekeep:
                 if createnew:
                     mention = '@' + (', @'.join(map(lambda x: x['username'], issue['assignees'])))
                     txt = prefix + ' :alarm_clock: ' + mention + ' The issue is past due. :cold_sweat:'
-                    self.api.post_note(self.project, issue['iid'], txt)
+                    if not self.dry_run:
+                        self.api.post_note(self.project, issue['iid'], txt)
 
                     return (True, [ 'past_due_note=created_new' ])
 
@@ -260,7 +288,8 @@ class Housekeep:
                 # delete existing notes
                 if len(notinotes) > 0:
                     for notinote in notinotes:
-                        self.api.delete_note(self.project, issue['iid'], notinote['id'])
+                        if not self.dry_run:
+                            self.api.delete_note(self.project, issue['iid'], notinote['id'])
 
                     return (True, [ 'past_due_note=deleted' ])
 
@@ -396,27 +425,33 @@ class Housekeep:
                 summarybody = '\n'.join(summaryrows)
 
                 if summary_id is None:
-                    self.api.post_note(self.project, issue['iid'], summarybody)
+                    if not self.dry_run:
+                        self.api.post_note(self.project, issue['iid'], summarybody)
                 else:
-                    self.api.update_note(self.project, issue['iid'], summary_id, summarybody)
+                    if not self.dry_run:
+                        self.api.update_note(self.project, issue['iid'], summary_id, summarybody)
 
             # delete summary if no items in state
             elif summary_id is not None and len(newstate_data['items']) < 1:
-                self.api.delete_note(self.project, issue['iid'], summary_id)
+                if not self.dry_run:
+                    self.api.delete_note(self.project, issue['iid'], summary_id)
 
             # update existing state note
             if state_id is not None and state_data['last_updated'] < newstate_data['last_updated'] and len(newstate_data['items']) > 0:
-                self.api.update_note(self.project, issue['iid'], state_id, statebody)
+                if not self.dry_run:
+                    self.api.update_note(self.project, issue['iid'], state_id, statebody)
                 return (True, [ 'counter=updated' ])
 
             # create a new state note
             elif state_id is None and len(newstate_data['items']) > 0:
-                self.api.post_note(self.project, issue['iid'], statebody)
+                if not self.dry_run:
+                    self.api.post_note(self.project, issue['iid'], statebody)
                 return (True, [ 'counter=created' ])
 
             # delete state config as the new state has no items
             elif state_id is not None and len(newstate_data['items']) <= 0:
-                self.api.delete_note(self.project, issue['iid'], state_id)
+                if not self.dry_run:
+                    self.api.delete_note(self.project, issue['iid'], state_id)
                 return (False, [])
 
         return (False, [])
@@ -430,6 +465,7 @@ def parse_args():
     parser.add_argument('--gitlab-url', metavar='https://git.example.com', type=str, required=True, help='GitLab private access token')
     parser.add_argument('--project', metavar='johndoe/todos', type=str, required=True, help='GitLab project')
     parser.add_argument('--assignee', metavar=42, type=int, default=0, help='Assign issue to this user id if unassigned')
+    parser.add_argument('--dry-run', action='store_true', help='Dry run', default=False)
 
     # filter issues
     parser.add_argument('--delay', metavar='900', type=int, default=900, help='Process only issues which wasn\'t updated X seconds')
@@ -441,6 +477,9 @@ def parse_args():
     parser.add_argument('--label-group', metavar='somelabel', action='append', help='Group label and assign default label to issues')
     parser.add_argument('--label-category', metavar='somelabel,someotherlabel', action='append', help='Add the last label in the list if one of the others are assigned to the issue')
     parser.add_argument('--closed-remove-label', metavar='somelabel', action='append', help='Remove labels when issue is closed')
+    parser.add_argument('--workflow-labels', action='store_true', help='Manage Workflow Tags', default=False)
+    parser.add_argument('--workflow-use-backlog', action='store_true', help='Use backlog label in workflow', default=False)
+    parser.add_argument('--workflow-use-approved', action='store_true', help='Use approved label in workflow', default=False)
 
     # issue features
     parser.add_argument('--close-obsolete', action='store_true', help='Close issues labled as obsolete', default=False)
@@ -460,6 +499,9 @@ def main():
     # command line args
     args = parse_args()
 
+    if args.dry_run:
+        eprint('Dry run mode enabled.')
+
     # args from environment variables
     gitlab_token = os.environ.get('TASKOMAT_TOKEN')
     if not gitlab_token:
@@ -470,21 +512,49 @@ def main():
     updated_after = now - datetime.timedelta(seconds=args.max_updated_age)
     updated_before = now - datetime.timedelta(seconds=args.delay)
 
+    # ensure lists in arguments
+    labelgroups = args.label_group if args.label_group and len(args.label_group) > 0 else []
+    labelcategories = args.label_category if args.label_category and len(args.label_category) > 0 else []
+    closedlabels = args.closed_remove_label if args.closed_remove_label and len(args.closed_remove_label) > 0 else []
+
+    # workflow labels
+    if args.workflow_labels:
+        workflow_labels = [ ]
+
+        if args.workflow_use_backlog:
+            workflow_labels.append(f"~{LABEL_BACKLOG}*")
+            closedlabels.append(f"~{LABEL_BACKLOG}")
+
+        if args.workflow_use_approved:
+            workflow_labels.append(f"~{LABEL_APPROVED}")
+            closedlabels.append(f"~{LABEL_APPROVED}")
+
+        workflow_labels.append(f"~{LABEL_HOLD}")
+        closedlabels.append(f"~{LABEL_HOLD}")
+
+        workflow_labels.append(f"~{LABEL_WIP}")
+        closedlabels.append(f"~{LABEL_WIP}")
+
+        labelgroups.append(','.join(workflow_labels))
+
     # initialize tasks
     keep = Housekeep(
         gitlab_url=args.gitlab_url,
         gitlab_token=gitlab_token,
         gitlab_project=args.project,
         updated_after=updated_after,
-        updated_before=updated_before
+        updated_before=updated_before,
+        dry_run=args.dry_run
     )
 
-    # execute tasks for each issue
+    # restrict issues to process by iids
     issue_iids = []
 
+    # single iid
     if args.issue_iid and args.issue_iid > 0:
         issue_iids.append(args.issue_iid)
 
+    # iid list
     if args.issue_iids:
         temp = args.issue_iids
         for temp_iid in map(lambda x: x.strip(), temp.split(',')):
@@ -492,8 +562,9 @@ def main():
                 issue_iids.append(int(temp_iid))
 
     if len(issue_iids) > 0:
-        print(f"Issue IIDs: {', '.join(map(str, issue_iids))}")
+        eprint(f"Issue IIDs: {', '.join(map(str, issue_iids))}")
 
+    # process each issue
     ctr_issues = 0
     ctr_processed = 0
 
@@ -518,10 +589,6 @@ def main():
             messages += keep.ensure_confidential(issue)[1]
 
         # enforce certain label rules based on the state of the issue
-        labelgroups = args.label_group if args.label_group and len(args.label_group) > 0 else []
-        labelcategories = args.label_category if args.label_category and len(args.label_category) > 0 else []
-        closedlabels = args.closed_remove_label if args.closed_remove_label and len(args.closed_remove_label) > 0 else []
-
         messages += keep.ensure_labels(issue, labelgroups, labelcategories, closedlabels)[1]
 
         # past due notification
@@ -537,7 +604,7 @@ def main():
             ctr_processed += 1
             print(f"Touched issue #{issue['iid']}: {', '.join(messages)}")
 
-    print(f"Processed {ctr_processed} of {ctr_issues} issues")
+    eprint(f"Processed {ctr_processed} of {ctr_issues} issues")
 
 if __name__ == "__main__":
     try:
